@@ -3,25 +3,25 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>J.A.R.V.I.S.</title>
+<title>T.H.A.N.O.S.</title>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Rajdhani:wght@400;600&display=swap" rel="stylesheet">
 <style>
-  :root { --c: #00e5ff; --c2: #0077ff; --bg: #02060d; }
+  :root { --c: #b455ff; --c2: #7a1fe0; --bg: #0a0212; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { height: 100%; background: var(--bg); color: var(--c); font-family: 'Rajdhani', sans-serif; overflow: hidden; }
-  body { background: radial-gradient(ellipse at center, #06182b 0%, var(--bg) 70%); }
+  body { background: radial-gradient(ellipse at center, #200a33 0%, var(--bg) 70%); }
   canvas { position: fixed; inset: 0; width: 100%; height: 100%; }
   .hud { position: fixed; inset: 0; pointer-events: none; display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 24px 16px; }
   .title { font-family: 'Orbitron', sans-serif; font-size: clamp(18px, 3vw, 28px); letter-spacing: .6em; text-shadow: 0 0 12px var(--c); }
   .status { font-family: 'Orbitron', sans-serif; font-size: 12px; letter-spacing: .3em; opacity: .8; margin-top: 6px; text-align: center; }
   .bottom { width: min(720px, 100%); pointer-events: auto; display: flex; flex-direction: column; gap: 10px; }
   .log { max-height: 26vh; overflow-y: auto; font-size: 17px; display: flex; flex-direction: column; gap: 6px; scrollbar-width: none; }
-  .msg { padding: 6px 12px; border-left: 2px solid var(--c); background: rgba(0,229,255,.06); }
+  .msg { padding: 6px 12px; border-left: 2px solid var(--c); background: rgba(180,85,255,.06); }
   .msg.user { border-color: #fff; color: #dff; align-self: flex-end; border-left: none; border-right: 2px solid #fff; text-align: right; }
   .msg b { font-family: 'Orbitron'; font-size: 11px; letter-spacing: .2em; opacity: .7; display: block; }
   .row { display: flex; gap: 8px; }
-  input { flex: 1; background: rgba(0,229,255,.05); border: 1px solid rgba(0,229,255,.4); color: #e6fdff; padding: 12px 14px; font: inherit; font-size: 17px; outline: none; }
-  input:focus { border-color: var(--c); box-shadow: 0 0 12px rgba(0,229,255,.4); }
+  input { flex: 1; background: rgba(180,85,255,.05); border: 1px solid rgba(180,85,255,.4); color: #f3e6ff; padding: 12px 14px; font: inherit; font-size: 17px; outline: none; }
+  input:focus { border-color: var(--c); box-shadow: 0 0 12px rgba(180,85,255,.4); }
   button { background: transparent; border: 1px solid var(--c); color: var(--c); padding: 0 18px; font-family: 'Orbitron'; letter-spacing: .15em; cursor: pointer; }
   button:hover, button.on { background: var(--c); color: var(--bg); box-shadow: 0 0 20px var(--c); }
   .goal { font-family: 'Orbitron'; font-size: 12px; letter-spacing: .2em; text-align: center; min-height: 1em; }
@@ -32,7 +32,7 @@
 <canvas id="c"></canvas>
 <div class="hud">
   <div>
-    <div class="title">J.A.R.V.I.S.</div>
+    <div class="title">T.H.A.N.O.S.</div>
     <div class="status" id="status">SYSTEM ONLINE</div>
   </div>
   <div class="bottom">
@@ -41,9 +41,9 @@
     <div class="row">
       <input id="txt" placeholder="Sag oder schreib dein Ziel…" autocomplete="off">
       <button id="mic" title="Sprechen (Leertaste)">MIC</button>
-      <button id="wake" title="Freihändig: auf &quot;Jarvis&quot; hören">WAKE</button>
+      <button id="wake" title="Freihändig: auf &quot;Thanos&quot; hören">WAKE</button>
     </div>
-    <div class="hint">Klick auf den Orb oder drück MIC zum Sprechen · Enter zum Senden · WAKE für freihändig ("Jarvis, …")</div>
+    <div class="hint">Klick auf den Orb oder drück MIC zum Sprechen · Enter zum Senden · WAKE für freihändig ("Thanos, …")</div>
   </div>
 </div>
 <script>
@@ -59,8 +59,8 @@ const pts = Array.from({ length: 420 }, () => {
   const u = Math.random() * 2 - 1, t = Math.random() * Math.PI * 2;
   return { x: Math.sqrt(1 - u * u) * Math.cos(t), y: Math.sqrt(1 - u * u) * Math.sin(t), z: u };
 });
-const colors = { idle: [0, 229, 255], listening: [255, 255, 255], thinking: [255, 170, 0], speaking: [0, 160, 255] };
-let col = [0, 229, 255];
+const colors = { idle: [180, 85, 255], listening: [255, 255, 255], thinking: [255, 170, 0], speaking: [150, 40, 255] };
+let col = [180, 85, 255];
 
 function frame(ts) {
   const t = ts / 1000;
@@ -122,19 +122,23 @@ const labels = { idle: 'SYSTEM ONLINE', listening: 'LISTENING…', thinking: 'PR
 function setState(s) { state = s; statusEl.textContent = labels[s]; mic.classList.toggle('on', s === 'listening'); }
 function log(who, text) {
   const d = document.createElement('div'); d.className = 'msg' + (who === 'user' ? ' user' : '');
-  d.innerHTML = `<b>${who === 'user' ? 'SIR' : 'JARVIS'}</b>`; d.append(text);
+  d.innerHTML = `<b>${who === 'user' ? 'SIR' : 'THANOS'}</b>`; d.append(text);
   logEl.append(d); logEl.scrollTop = logEl.scrollHeight;
 }
 
 // ---------- Voice out ----------
 function speak(text) {
-  log('jarvis', text);
+  log('thanos', text);
   if (!('speechSynthesis' in window)) return setState('idle');
   speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance(text);
-  u.lang = 'de-DE'; u.rate = 1.02; u.pitch = 0.85;
-  const v = speechSynthesis.getVoices().find(v => v.lang.startsWith('de') && /male|Markus|Yannick|Conrad|Stefan/i.test(v.name))
-         || speechSynthesis.getVoices().find(v => v.lang.startsWith('de'));
+  u.lang = 'de-DE'; u.rate = 1.28; u.pitch = 0.95;
+  const voices = speechSynthesis.getVoices().filter(v => v.lang.startsWith('de'));
+  const v = voices.find(v => /Google/i.test(v.name) && /male|Markus|Yannick|Conrad|Stefan/i.test(v.name))
+         || voices.find(v => /Google/i.test(v.name))
+         || voices.find(v => /Natural|Online|Neural/i.test(v.name))
+         || voices.find(v => /male|Markus|Yannick|Conrad|Stefan/i.test(v.name))
+         || voices[0];
   if (v) u.voice = v;
   u.onstart = () => setState('speaking');
   u.onend = u.onerror = () => setState('idle');
@@ -142,11 +146,11 @@ function speak(text) {
 }
 
 // ---------- Brain ----------
-let goal = localStorage.getItem('jarvis_goal') || '';
+let goal = localStorage.getItem('thanos_goal') || '';
 if (goal) goalEl.textContent = 'AKTUELLES ZIEL: ' + goal.toUpperCase();
 function setGoal(g) {
   goal = g.replace(/[.!]$/, '').trim();
-  try { localStorage.setItem('jarvis_goal', goal); } catch {}
+  try { localStorage.setItem('thanos_goal', goal); } catch {}
   goalEl.textContent = goal ? 'AKTUELLES ZIEL: ' + goal.toUpperCase() : '';
 }
 
@@ -163,7 +167,7 @@ function localThink(input) {
   if (/uhr|zeit/.test(q)) return 'Es ist ' + new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) + ' Uhr.';
   if (/datum|welcher tag/.test(q)) return 'Heute ist ' + new Date().toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' }) + '.';
   if (/hallo|hi |hey|guten/.test(q + ' ')) return 'Guten Tag, Sir. Alle Systeme sind bereit. Was ist Ihr Ziel?';
-  if (/wer bist du/.test(q)) return 'Ich bin J.A.R.V.I.S., Ihr persönlicher Assistent.';
+  if (/wer bist du/.test(q)) return 'Ich bin T.H.A.N.O.S., Ihr persönlicher Assistent.';
   if (/danke/.test(q)) return 'Stets zu Diensten, Sir.';
   return goal ? `Notiert: "${input}". Das bringt uns näher an ${goal}.` : `Notiert. Sagen Sie "Mein Ziel ist …", damit ich es speichere.`;
 }
@@ -213,14 +217,14 @@ if (SR) {
   rec.onerror = () => setState('idle');
 }
 
-// Freihändiger Wake-Word-Modus: hört dauerhaft passiv auf "Jarvis, …"
+// Freihändiger Wake-Word-Modus: hört dauerhaft passiv auf "Thanos, …"
 function startWake() {
   if (!SR || wakeRec) return;
   wakeRec = new SR(); wakeRec.lang = 'de-DE'; wakeRec.continuous = true; wakeRec.interimResults = true;
   wakeRec.onresult = (e) => {
     const r = e.results[e.results.length - 1], text = r[0].transcript.toLowerCase();
-    if (r.isFinal && /jarvis/.test(text)) {
-      const cmd = text.split(/jarvis[,:]?\s*/i).pop().trim();
+    if (r.isFinal && /thanos/.test(text)) {
+      const cmd = text.split(/thanos[,:]?\s*/i).pop().trim();
       if (cmd) handle(cmd); else listen();
     }
   };

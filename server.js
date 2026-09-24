@@ -1,13 +1,13 @@
-// JARVIS backend: serves the interface and proxies chat to the Claude API.
+// THANOS backend: serves the interface and proxies chat to the Claude API.
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
 const PORT = process.env.PORT || 3000;
 const API_KEY = process.env.ANTHROPIC_API_KEY;
-const MODEL = process.env.JARVIS_MODEL || 'claude-sonnet-5';
+const MODEL = process.env.THANOS_MODEL || 'claude-sonnet-5';
 
-const SYSTEM = (goal) => `Du bist J.A.R.V.I.S., der KI-Assistent aus Iron Man.
+const SYSTEM = (goal) => `Du bist T.H.A.N.O.S., ein persönlicher KI-Assistent im Stil eines futuristischen Sprachinterfaces.
 Sprich Deutsch, höflich, trocken-humorvoll wie ein britischer Butler, und rede den Nutzer mit "Sir" an.
 Deine Antworten werden laut vorgelesen: maximal 2-3 kurze Sätze, kein Markdown, keine Listen, keine Emojis.
 Deine Hauptaufgabe: dem Nutzer helfen, sein Ziel zu erreichen – konkrete nächste Schritte vorschlagen, nachhaken, motivieren.
@@ -52,6 +52,6 @@ http.createServer((req, res) => {
   }
   send(res, 404, 'Not found', 'text/plain');
 }).listen(PORT, () => {
-  console.log(`J.A.R.V.I.S. online: http://localhost:${PORT}`);
+  console.log(`T.H.A.N.O.S. online: http://localhost:${PORT}`);
   if (!API_KEY) console.warn('Warnung: ANTHROPIC_API_KEY nicht gesetzt – nur Offline-Modus.');
 });
