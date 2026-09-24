@@ -41,8 +41,9 @@
     <div class="row">
       <input id="txt" placeholder="Sag oder schreib dein Ziel…" autocomplete="off">
       <button id="mic" title="Sprechen (Leertaste)">MIC</button>
+      <button id="wake" title="Freihändig: auf &quot;Jarvis&quot; hören">WAKE</button>
     </div>
-    <div class="hint">Klick auf den Orb oder drück MIC zum Sprechen · Enter zum Senden</div>
+    <div class="hint">Klick auf den Orb oder drück MIC zum Sprechen · Enter zum Senden · WAKE für freihändig ("Jarvis, …")</div>
   </div>
 </div>
 <script>
@@ -116,7 +117,7 @@ requestAnimationFrame(frame);
 
 // ---------- UI ----------
 const $ = (id) => document.getElementById(id);
-const statusEl = $('status'), logEl = $('log'), txt = $('txt'), mic = $('mic'), goalEl = $('goal');
+const statusEl = $('status'), logEl = $('log'), txt = $('txt'), mic = $('mic'), goalEl = $('goal'), wakeBtn = $('wake');
 const labels = { idle: 'SYSTEM ONLINE', listening: 'LISTENING…', thinking: 'PROCESSING…', speaking: 'RESPONDING' };
 function setState(s) { state = s; statusEl.textContent = labels[s]; mic.classList.toggle('on', s === 'listening'); }
 function log(who, text) {
@@ -140,20 +141,25 @@ function speak(text) {
   speechSynthesis.speak(u);
 }
 
-// ---------- Brain (local, replace with an LLM backend later) ----------
+// ---------- Brain ----------
 let goal = localStorage.getItem('jarvis_goal') || '';
 if (goal) goalEl.textContent = 'AKTUELLES ZIEL: ' + goal.toUpperCase();
-function think(input) {
+function setGoal(g) {
+  goal = g.replace(/[.!]$/, '').trim();
+  try { localStorage.setItem('jarvis_goal', goal); } catch {}
+  goalEl.textContent = goal ? 'AKTUELLES ZIEL: ' + goal.toUpperCase() : '';
+}
+
+// Offline fallback (regelbasiert) – greift, wenn kein Server/Key verfügbar ist.
+function localThink(input) {
   const q = input.toLowerCase().trim();
   const m = q.match(/(?:mein ziel ist|ziel:|ich will|ich möchte)\s*(.+)/);
   if (m) {
-    goal = m[1].replace(/[.!]$/, '');
-    try { localStorage.setItem('jarvis_goal', goal); } catch {}
-    goalEl.textContent = 'AKTUELLES ZIEL: ' + goal.toUpperCase();
+    setGoal(m[1]);
     return `Verstanden. Ziel gespeichert: ${goal}. Ich schlage vor, wir zerlegen es in kleine Schritte. Was ist der erste Schritt?`;
   }
   if (/was ist mein ziel|welches ziel/.test(q)) return goal ? `Ihr aktuelles Ziel lautet: ${goal}.` : 'Sie haben noch kein Ziel festgelegt.';
-  if (/ziel löschen|vergiss.*ziel/.test(q)) { goal = ''; try { localStorage.removeItem('jarvis_goal'); } catch {} goalEl.textContent = ''; return 'Ziel gelöscht.'; }
+  if (/ziel löschen|vergiss.*ziel/.test(q)) { setGoal(''); return 'Ziel gelöscht.'; }
   if (/uhr|zeit/.test(q)) return 'Es ist ' + new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) + ' Uhr.';
   if (/datum|welcher tag/.test(q)) return 'Heute ist ' + new Date().toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' }) + '.';
   if (/hallo|hi |hey|guten/.test(q + ' ')) return 'Guten Tag, Sir. Alle Systeme sind bereit. Was ist Ihr Ziel?';
@@ -161,15 +167,42 @@ function think(input) {
   if (/danke/.test(q)) return 'Stets zu Diensten, Sir.';
   return goal ? `Notiert: "${input}". Das bringt uns näher an ${goal}.` : `Notiert. Sagen Sie "Mein Ziel ist …", damit ich es speichere.`;
 }
+
+// Verlauf für die API (letzte Nachrichten)
+const history = [];
+
+async function think(input) {
+  history.push({ role: 'user', content: input });
+  try {
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ messages: history.slice(-20), goal }),
+    });
+    if (!res.ok) throw new Error('offline');
+    const { text } = await res.json();
+    let reply = text || '';
+    const m = reply.match(/\[\[ZIEL:\s*(.+?)\]\]/i);
+    if (m) { setGoal(m[1]); reply = reply.replace(m[0], '').trim(); }
+    if (!reply) throw new Error('empty');
+    history.push({ role: 'assistant', content: reply });
+    return reply;
+  } catch {
+    const reply = localThink(input);
+    history.push({ role: 'assistant', content: reply });
+    return reply;
+  }
+}
+
 function handle(input) {
   if (!input.trim()) return;
   log('user', input); setState('thinking');
-  setTimeout(() => speak(think(input)), 600);
+  think(input).then(speak);
 }
 
 // ---------- Voice in ----------
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-let rec = null;
+let rec = null, wakeOn = false, wakeRec = null;
 if (SR) {
   rec = new SR(); rec.lang = 'de-DE'; rec.interimResults = true;
   rec.onresult = (e) => {
@@ -177,13 +210,59 @@ if (SR) {
     target = 0.3 + Math.random() * 0.4;
     if (r.isFinal) { const v = txt.value; txt.value = ''; handle(v); }
   };
-  rec.onend = () => { if (state === 'listening') setState('idle'); };
   rec.onerror = () => setState('idle');
 }
+
+// Freihändiger Wake-Word-Modus: hört dauerhaft passiv auf "Jarvis, …"
+function startWake() {
+  if (!SR || wakeRec) return;
+  wakeRec = new SR(); wakeRec.lang = 'de-DE'; wakeRec.continuous = true; wakeRec.interimResults = true;
+  wakeRec.onresult = (e) => {
+    const r = e.results[e.results.length - 1], text = r[0].transcript.toLowerCase();
+    if (r.isFinal && /jarvis/.test(text)) {
+      const cmd = text.split(/jarvis[,:]?\s*/i).pop().trim();
+      if (cmd) handle(cmd); else listen();
+    }
+  };
+  wakeRec.onend = () => { if (wakeOn) try { wakeRec.start(); } catch {} };
+  wakeRec.onerror = () => {};
+  try { wakeRec.start(); } catch {}
+}
+function stopWake() { wakeOn = false; wakeRec?.stop(); wakeRec = null; }
+wakeBtn.onclick = () => {
+  if (!SR) return speak('Spracherkennung wird von diesem Browser nicht unterstützt.');
+  wakeOn = !wakeOn; wakeBtn.classList.toggle('on', wakeOn);
+  if (wakeOn) startWake(); else stopWake();
+};
+// Mikrofonpegel treibt den Orb an, solange zugehört wird
+let audioCtx = null, analyser = null, levelData = null, levelStream = null;
+async function startLevelMeter() {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    levelStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const src = audioCtx.createMediaStreamSource(levelStream);
+    analyser = audioCtx.createAnalyser(); analyser.fftSize = 256;
+    levelData = new Uint8Array(analyser.frequencyBinCount);
+    src.connect(analyser);
+    (function tick() {
+      if (!analyser) return;
+      analyser.getByteFrequencyData(levelData);
+      const avg = levelData.reduce((a, b) => a + b, 0) / levelData.length / 255;
+      target = Math.min(1, 0.15 + avg * 1.8);
+      requestAnimationFrame(tick);
+    })();
+  } catch { /* Mikrofon-Pegel optional – Spracherkennung läuft trotzdem */ }
+}
+function stopLevelMeter() {
+  analyser = null;
+  levelStream?.getTracks().forEach(t => t.stop()); levelStream = null;
+}
+
 function listen() {
   if (!rec) return speak('Spracherkennung wird von diesem Browser nicht unterstützt. Bitte Chrome oder Edge verwenden.');
-  if (state === 'listening') return rec.stop();
+  if (state === 'listening') { rec.stop(); stopLevelMeter(); return; }
   speechSynthesis.cancel(); setState('listening'); target = 0.15;
+  startLevelMeter();
   try { rec.start(); } catch {}
 }
 mic.onclick = listen;
@@ -191,6 +270,19 @@ cv.onclick = listen;
 txt.onkeydown = (e) => { if (e.key === 'Enter') { handle(txt.value); txt.value = ''; } };
 addEventListener('keydown', (e) => { if (e.code === 'Space' && document.activeElement !== txt) { e.preventDefault(); listen(); } });
 speechSynthesis?.getVoices();
+rec && (rec.onend = () => { if (state === 'listening') setState('idle'); stopLevelMeter(); });
+
+// ---------- Boot-Sequenz ----------
+(function boot() {
+  const steps = ['INITIALIZING…', 'NEURAL LINK ESTABLISHED', 'SYSTEM ONLINE'];
+  let i = 0;
+  statusEl.textContent = steps[0];
+  const iv = setInterval(() => {
+    i++;
+    if (i >= steps.length) { clearInterval(iv); statusEl.textContent = labels.idle; return; }
+    statusEl.textContent = steps[i];
+  }, 650);
+})();
 </script>
 </body>
 </html>

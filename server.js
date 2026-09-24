@@ -1,0 +1,57 @@
+// JARVIS backend: serves the interface and proxies chat to the Claude API.
+const http = require('http');
+const fs = require('fs');
+const path = require('path');
+
+const PORT = process.env.PORT || 3000;
+const API_KEY = process.env.ANTHROPIC_API_KEY;
+const MODEL = process.env.JARVIS_MODEL || 'claude-sonnet-5';
+
+const SYSTEM = (goal) => `Du bist J.A.R.V.I.S., der KI-Assistent aus Iron Man.
+Sprich Deutsch, höflich, trocken-humorvoll wie ein britischer Butler, und rede den Nutzer mit "Sir" an.
+Deine Antworten werden laut vorgelesen: maximal 2-3 kurze Sätze, kein Markdown, keine Listen, keine Emojis.
+Deine Hauptaufgabe: dem Nutzer helfen, sein Ziel zu erreichen – konkrete nächste Schritte vorschlagen, nachhaken, motivieren.
+${goal ? `Aktuelles Ziel des Nutzers: "${goal}".` : 'Der Nutzer hat noch kein Ziel genannt – frag danach.'}
+Wenn der Nutzer ein NEUES Ziel nennt oder sein Ziel ändert, hänge am Ende exakt an: [[ZIEL: <kurze Formulierung des Ziels>]]`;
+
+function send(res, code, body, type = 'application/json') {
+  res.writeHead(code, { 'Content-Type': type });
+  res.end(typeof body === 'string' ? body : JSON.stringify(body));
+}
+
+async function chat(req, res) {
+  let raw = '';
+  for await (const chunk of req) { raw += chunk; if (raw.length > 1e5) return send(res, 413, { error: 'too large' }); }
+  if (!API_KEY) return send(res, 503, { error: 'ANTHROPIC_API_KEY fehlt' });
+  let body;
+  try { body = JSON.parse(raw); } catch { return send(res, 400, { error: 'bad json' }); }
+  const messages = (Array.isArray(body.messages) ? body.messages : [])
+    .filter(m => (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
+    .slice(-20);
+  if (!messages.length || messages[messages.length - 1].role !== 'user') return send(res, 400, { error: 'no user message' });
+
+  try {
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-api-key': API_KEY, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({ model: MODEL, max_tokens: 400, system: SYSTEM(String(body.goal || '').slice(0, 300)), messages }),
+    });
+    const data = await r.json();
+    if (!r.ok) return send(res, 502, { error: data.error?.message || 'API error' });
+    const text = data.content.filter(b => b.type === 'text').map(b => b.text).join('').trim();
+    send(res, 200, { text });
+  } catch (e) {
+    send(res, 502, { error: e.message });
+  }
+}
+
+http.createServer((req, res) => {
+  if (req.method === 'POST' && req.url === '/api/chat') return chat(req, res);
+  if (req.method === 'GET' && (req.url === '/' || req.url === '/index.html')) {
+    return send(res, 200, fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8'), 'text/html; charset=utf-8');
+  }
+  send(res, 404, 'Not found', 'text/plain');
+}).listen(PORT, () => {
+  console.log(`J.A.R.V.I.S. online: http://localhost:${PORT}`);
+  if (!API_KEY) console.warn('Warnung: ANTHROPIC_API_KEY nicht gesetzt – nur Offline-Modus.');
+});
