@@ -316,7 +316,16 @@ if (SR) {
     target = 0.3 + Math.random() * 0.4;
     if (r.isFinal) { const v = txt.value; txt.value = ''; handle(v); }
   };
-  rec.onerror = () => setState('idle');
+  rec.onerror = (e) => {
+    setState('idle');
+    if (e.error === 'no-speech' || e.error === 'aborted') return; // kein Fehlerhinweis nötig
+    openChat();
+    if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+      log('thanos', 'Kein Mikrofonzugriff. Bitte in den Browser-/Seiteneinstellungen erlauben und erneut versuchen.');
+    } else {
+      log('thanos', `Spracherkennung fehlgeschlagen (${e.error}).`);
+    }
+  };
 }
 
 // Freihändiger Wake-Word-Modus: hört dauerhaft passiv auf "Thanos, …"
