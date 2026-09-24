@@ -6,6 +6,9 @@ const path = require('path');
 const PORT = process.env.PORT || 3000;
 const API_KEY = process.env.ANTHROPIC_API_KEY;
 const MODEL = process.env.THANOS_MODEL || 'claude-sonnet-5';
+const ELEVEN_KEY = process.env.ELEVENLABS_API_KEY;
+// Deep, calm male voice (ElevenLabs "Adam"); override with ELEVENLABS_VOICE_ID.
+const ELEVEN_VOICE = process.env.ELEVENLABS_VOICE_ID || 'pNInz6obpgDQGcFmaJgB';
 
 const SYSTEM = `Du bist T.H.A.N.O.S., ein persönlicher KI-Assistent im Stil eines futuristischen Sprachinterfaces.
 Sprich Deutsch, höflich, trocken-humorvoll wie ein britischer Butler, und rede den Nutzer mit "Sir" an.
@@ -43,8 +46,40 @@ async function chat(req, res) {
   }
 }
 
+async function tts(req, res) {
+  let raw = '';
+  for await (const chunk of req) { raw += chunk; if (raw.length > 1e4) return send(res, 413, { error: 'too large' }); }
+  if (!ELEVEN_KEY) return send(res, 503, { error: 'ELEVENLABS_API_KEY fehlt' });
+  let body;
+  try { body = JSON.parse(raw); } catch { return send(res, 400, { error: 'bad json' }); }
+  const text = String(body.text || '').slice(0, 2000).trim();
+  if (!text) return send(res, 400, { error: 'no text' });
+
+  try {
+    const r = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${ELEVEN_VOICE}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', accept: 'audio/mpeg', 'xi-api-key': ELEVEN_KEY },
+      body: JSON.stringify({
+        text,
+        model_id: 'eleven_multilingual_v2',
+        voice_settings: { stability: 0.45, similarity_boost: 0.8, style: 0.35, use_speaker_boost: true, speed: 1.08 },
+      }),
+    });
+    if (!r.ok) {
+      const err = await r.text().catch(() => '');
+      return send(res, 502, { error: `ElevenLabs: ${err || r.status}` });
+    }
+    res.writeHead(200, { 'Content-Type': 'audio/mpeg' });
+    for await (const chunk of r.body) res.write(chunk);
+    res.end();
+  } catch (e) {
+    send(res, 502, { error: e.message });
+  }
+}
+
 http.createServer((req, res) => {
   if (req.method === 'POST' && req.url === '/api/chat') return chat(req, res);
+  if (req.method === 'POST' && req.url === '/api/tts') return tts(req, res);
   if (req.method === 'GET' && (req.url === '/' || req.url === '/index.html')) {
     return send(res, 200, fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8'), 'text/html; charset=utf-8');
   }
@@ -52,4 +87,5 @@ http.createServer((req, res) => {
 }).listen(PORT, () => {
   console.log(`T.H.A.N.O.S. online: http://localhost:${PORT}`);
   if (!API_KEY) console.warn('Warnung: ANTHROPIC_API_KEY nicht gesetzt – nur Offline-Modus.');
+  if (!ELEVEN_KEY) console.warn('Warnung: ELEVENLABS_API_KEY nicht gesetzt – Browser-Stimme als Fallback.');
 });

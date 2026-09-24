@@ -223,8 +223,7 @@ chatToggle.onclick = openChat;
 closeChat.onclick = closeChatView;
 
 // ---------- Voice out ----------
-function speak(text) {
-  log('thanos', text);
+function speakBrowser(text) {
   if (!('speechSynthesis' in window)) return setState('idle');
   speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance(text);
@@ -239,6 +238,29 @@ function speak(text) {
   u.onstart = () => setState('speaking');
   u.onend = u.onerror = () => setState('idle');
   speechSynthesis.speak(u);
+}
+
+let ttsAudio = null;
+async function speak(text) {
+  log('thanos', text);
+  speechSynthesis?.cancel();
+  try {
+    const res = await fetch('/api/tts', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ text }),
+    });
+    if (!res.ok) throw new Error('tts offline');
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    ttsAudio?.pause();
+    ttsAudio = new Audio(url);
+    ttsAudio.onplay = () => setState('speaking');
+    ttsAudio.onended = ttsAudio.onerror = () => { setState('idle'); URL.revokeObjectURL(url); };
+    await ttsAudio.play();
+  } catch {
+    speakBrowser(text);
+  }
 }
 
 // ---------- Brain ----------
