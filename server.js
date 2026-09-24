@@ -7,12 +7,10 @@ const PORT = process.env.PORT || 3000;
 const API_KEY = process.env.ANTHROPIC_API_KEY;
 const MODEL = process.env.THANOS_MODEL || 'claude-sonnet-5';
 
-const SYSTEM = (goal) => `Du bist T.H.A.N.O.S., ein persönlicher KI-Assistent im Stil eines futuristischen Sprachinterfaces.
+const SYSTEM = `Du bist T.H.A.N.O.S., ein persönlicher KI-Assistent im Stil eines futuristischen Sprachinterfaces.
 Sprich Deutsch, höflich, trocken-humorvoll wie ein britischer Butler, und rede den Nutzer mit "Sir" an.
 Deine Antworten werden laut vorgelesen: maximal 2-3 kurze Sätze, kein Markdown, keine Listen, keine Emojis.
-Deine Hauptaufgabe: dem Nutzer helfen, sein Ziel zu erreichen – konkrete nächste Schritte vorschlagen, nachhaken, motivieren.
-${goal ? `Aktuelles Ziel des Nutzers: "${goal}".` : 'Der Nutzer hat noch kein Ziel genannt – frag danach.'}
-Wenn der Nutzer ein NEUES Ziel nennt oder sein Ziel ändert, hänge am Ende exakt an: [[ZIEL: <kurze Formulierung des Ziels>]]`;
+Deine Aufgabe: dem Nutzer helfen, konkrete Aufgaben zu erledigen. Wenn eine Aufgabe genannt wird, geh direkt darauf ein, schlage konkrete nächste Schritte vor oder erledige sie im Gespräch, statt nach einem übergeordneten Ziel zu fragen.`;
 
 function send(res, code, body, type = 'application/json') {
   res.writeHead(code, { 'Content-Type': type });
@@ -34,7 +32,7 @@ async function chat(req, res) {
     const r = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-api-key': API_KEY, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({ model: MODEL, max_tokens: 400, system: SYSTEM(String(body.goal || '').slice(0, 300)), messages }),
+      body: JSON.stringify({ model: MODEL, max_tokens: 400, system: SYSTEM, messages }),
     });
     const data = await r.json();
     if (!r.ok) return send(res, 502, { error: data.error?.message || 'API error' });

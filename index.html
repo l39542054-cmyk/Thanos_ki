@@ -7,44 +7,139 @@
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Rajdhani:wght@400;600&display=swap" rel="stylesheet">
 <style>
   :root { --c: #b455ff; --c2: #7a1fe0; --bg: #0a0212; }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
   html, body { height: 100%; background: var(--bg); color: var(--c); font-family: 'Rajdhani', sans-serif; overflow: hidden; }
   body { background: radial-gradient(ellipse at center, #200a33 0%, var(--bg) 70%); }
   canvas { position: fixed; inset: 0; width: 100%; height: 100%; }
-  .hud { position: fixed; inset: 0; pointer-events: none; display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 24px 16px; }
-  .title { font-family: 'Orbitron', sans-serif; font-size: clamp(18px, 3vw, 28px); letter-spacing: .6em; text-shadow: 0 0 12px var(--c); }
-  .status { font-family: 'Orbitron', sans-serif; font-size: 12px; letter-spacing: .3em; opacity: .8; margin-top: 6px; text-align: center; }
-  .bottom { width: min(720px, 100%); pointer-events: auto; display: flex; flex-direction: column; gap: 10px; }
-  .log { max-height: 26vh; overflow-y: auto; font-size: 17px; display: flex; flex-direction: column; gap: 6px; scrollbar-width: none; }
-  .msg { padding: 6px 12px; border-left: 2px solid var(--c); background: rgba(180,85,255,.06); }
-  .msg.user { border-color: #fff; color: #dff; align-self: flex-end; border-left: none; border-right: 2px solid #fff; text-align: right; }
-  .msg b { font-family: 'Orbitron'; font-size: 11px; letter-spacing: .2em; opacity: .7; display: block; }
-  .row { display: flex; gap: 8px; }
-  input { flex: 1; background: rgba(180,85,255,.05); border: 1px solid rgba(180,85,255,.4); color: #f3e6ff; padding: 12px 14px; font: inherit; font-size: 17px; outline: none; }
-  input:focus { border-color: var(--c); box-shadow: 0 0 12px rgba(180,85,255,.4); }
-  button { background: transparent; border: 1px solid var(--c); color: var(--c); padding: 0 18px; font-family: 'Orbitron'; letter-spacing: .15em; cursor: pointer; }
-  button:hover, button.on { background: var(--c); color: var(--bg); box-shadow: 0 0 20px var(--c); }
-  .goal { font-family: 'Orbitron'; font-size: 12px; letter-spacing: .2em; text-align: center; min-height: 1em; }
-  .hint { font-size: 13px; opacity: .55; text-align: center; }
+
+  /* ---------- Liquid Glass ---------- */
+  .glass {
+    position: relative;
+    background: linear-gradient(155deg, rgba(180,85,255,.16), rgba(255,255,255,.03) 40%, rgba(180,85,255,.06));
+    backdrop-filter: blur(22px) saturate(160%);
+    -webkit-backdrop-filter: blur(22px) saturate(160%);
+    border: 1px solid rgba(255,255,255,.16);
+    box-shadow:
+      0 8px 32px rgba(0,0,0,.45),
+      inset 0 1px 0 rgba(255,255,255,.35),
+      inset 0 -1px 12px rgba(180,85,255,.12);
+    overflow: hidden;
+    transition: transform .35s cubic-bezier(.22,1,.36,1), box-shadow .35s cubic-bezier(.22,1,.36,1), background .35s;
+  }
+  .glass::before {
+    content: ''; position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(120deg, rgba(255,255,255,.35) 0%, rgba(255,255,255,0) 28%);
+    mix-blend-mode: overlay;
+  }
+  .glass:active { transform: scale(.96); }
+
+  button.glass {
+    cursor: pointer; color: #f3e6ff; font-family: 'Orbitron', sans-serif; letter-spacing: .12em;
+    -webkit-user-select: none; user-select: none;
+  }
+  button.glass:hover {
+    background: linear-gradient(155deg, rgba(180,85,255,.28), rgba(255,255,255,.06) 40%, rgba(180,85,255,.14));
+    box-shadow: 0 8px 32px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.45), inset 0 -1px 14px rgba(180,85,255,.22), 0 0 22px rgba(180,85,255,.35);
+  }
+  button.glass.on {
+    background: linear-gradient(155deg, rgba(180,85,255,.5), rgba(255,255,255,.08) 45%, rgba(150,40,255,.3));
+    box-shadow: 0 8px 28px rgba(120,20,220,.5), inset 0 1px 0 rgba(255,255,255,.5), 0 0 30px rgba(180,85,255,.55);
+  }
+
+  /* ---------- Layout ---------- */
+  .hud { position: fixed; inset: 0; pointer-events: none; }
+  .view { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; transition: opacity .4s cubic-bezier(.22,1,.36,1), transform .4s cubic-bezier(.22,1,.36,1); }
+
+  /* Orb view */
+  #orbView { justify-content: center; pointer-events: none; }
+  .title { font-family: 'Orbitron', sans-serif; font-size: clamp(16px, 3vw, 24px); letter-spacing: .55em; text-shadow: 0 0 14px var(--c); position: absolute; top: max(28px, env(safe-area-inset-top, 0px)); }
+  .status { font-family: 'Orbitron', sans-serif; font-size: 11px; letter-spacing: .3em; opacity: .75; position: absolute; top: calc(max(28px, env(safe-area-inset-top, 0px)) + 34px); text-align: center; }
+  .orb-controls { position: absolute; bottom: max(40px, env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; align-items: center; gap: 14px; pointer-events: auto; }
+  .mic-btn {
+    width: 84px; height: 84px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font-size: 11px;
+  }
+  .mic-btn svg { width: 30px; height: 30px; }
+  .mic-hint { font-size: 12px; opacity: .55; letter-spacing: .05em; }
+  .wake-btn { border-radius: 999px; padding: 9px 20px; font-size: 11px; }
+
+  .chat-toggle {
+    position: absolute; top: max(24px, env(safe-area-inset-top, 0px)); right: 20px; pointer-events: auto;
+    border-radius: 999px; padding: 10px 18px; font-size: 12px; display: flex; align-items: center; gap: 8px;
+  }
+  .chat-toggle svg { width: 16px; height: 16px; }
+
+  /* Chat view */
+  #chatView { opacity: 0; transform: translateY(24px); pointer-events: none; justify-content: flex-end; padding: 0 16px max(16px, env(safe-area-inset-bottom, 0px)); }
+  body.chat-open #chatView { opacity: 1; transform: translateY(0); pointer-events: auto; }
+  body.chat-open #orbView { opacity: 0; transform: scale(.94); pointer-events: none; }
+  #orbView { opacity: 1; }
+
+  .chat-panel { width: min(720px, 100%); max-height: 82vh; border-radius: 28px; display: flex; flex-direction: column; padding: 14px; gap: 12px; }
+  .chat-header { display: flex; align-items: center; justify-content: space-between; padding: 4px 6px; }
+  .chat-header .title2 { font-family: 'Orbitron'; font-size: 13px; letter-spacing: .3em; }
+  .close-btn { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+  .close-btn svg { width: 14px; height: 14px; }
+
+  .log { max-height: 46vh; min-height: 12vh; overflow-y: auto; font-size: 16px; display: flex; flex-direction: column; gap: 8px; scrollbar-width: none; padding: 4px 2px; }
+  .msg { padding: 9px 14px; border-radius: 16px; max-width: 82%; }
+  .msg.thanos { align-self: flex-start; background: rgba(180,85,255,.14); border: 1px solid rgba(180,85,255,.25); border-bottom-left-radius: 4px; }
+  .msg.user { align-self: flex-end; background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.18); border-bottom-right-radius: 4px; }
+  .msg b { font-family: 'Orbitron'; font-size: 10px; letter-spacing: .2em; opacity: .6; display: block; margin-bottom: 3px; }
+
+  .row { display: flex; gap: 10px; align-items: center; }
+  .input-wrap { flex: 1; border-radius: 999px; padding: 4px 4px 4px 18px; display: flex; align-items: center; gap: 8px; }
+  input { flex: 1; background: transparent; border: none; color: #f3e6ff; font: inherit; font-size: 16px; outline: none; padding: 10px 0; }
+  input::placeholder { color: rgba(243,230,255,.4); }
+  .round-btn { width: 44px; height: 44px; min-width: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+  .round-btn svg { width: 18px; height: 18px; }
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
 <div class="hud">
-  <div>
+
+  <div class="view" id="orbView">
     <div class="title">T.H.A.N.O.S.</div>
     <div class="status" id="status">SYSTEM ONLINE</div>
-  </div>
-  <div class="bottom">
-    <div class="goal" id="goal"></div>
-    <div class="log" id="log"></div>
-    <div class="row">
-      <input id="txt" placeholder="Sag oder schreib dein Ziel…" autocomplete="off">
-      <button id="mic" title="Sprechen (Leertaste)">MIC</button>
-      <button id="wake" title="Freihändig: auf &quot;Thanos&quot; hören">WAKE</button>
+
+    <button class="glass chat-toggle" id="chatToggle" title="Chat öffnen">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16v11H8l-4 4V5z"/></svg>
+      CHAT
+    </button>
+
+    <div class="orb-controls">
+      <button class="glass mic-btn" id="mic" title="Sprechen (Leertaste)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3z"/><path d="M19 11a7 7 0 0 1-14 0"/><path d="M12 18v3"/></svg>
+      </button>
+      <div class="mic-hint">Klick oder Leertaste zum Sprechen</div>
+      <button class="glass wake-btn" id="wake">FREIHÄNDIG AUS</button>
     </div>
-    <div class="hint">Klick auf den Orb oder drück MIC zum Sprechen · Enter zum Senden · WAKE für freihändig ("Thanos, …")</div>
   </div>
+
+  <div class="view" id="chatView">
+    <div class="glass chat-panel">
+      <div class="chat-header">
+        <div class="title2">T.H.A.N.O.S.</div>
+        <button class="glass close-btn" id="closeChat" title="Schließen">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 5l14 14M19 5L5 19"/></svg>
+        </button>
+      </div>
+      <div class="log" id="log"></div>
+      <div class="row">
+        <div class="glass input-wrap">
+          <input id="txt" placeholder="Sag oder schreib deine Aufgabe…" autocomplete="off">
+        </div>
+        <button class="glass round-btn" id="micChat" title="Sprechen">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3z"/><path d="M19 11a7 7 0 0 1-14 0"/><path d="M12 18v3"/></svg>
+        </button>
+        <button class="glass round-btn" id="send" title="Senden">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 12l16-8-6 16-2.5-6.5L4 12z"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
 </div>
 <script>
 // ---------- Orb ----------
@@ -117,14 +212,23 @@ requestAnimationFrame(frame);
 
 // ---------- UI ----------
 const $ = (id) => document.getElementById(id);
-const statusEl = $('status'), logEl = $('log'), txt = $('txt'), mic = $('mic'), goalEl = $('goal'), wakeBtn = $('wake');
+const statusEl = $('status'), logEl = $('log'), txt = $('txt'), mic = $('mic'), micChat = $('micChat'), wakeBtn = $('wake');
+const chatToggle = $('chatToggle'), closeChat = $('closeChat'), sendBtn = $('send');
 const labels = { idle: 'SYSTEM ONLINE', listening: 'LISTENING…', thinking: 'PROCESSING…', speaking: 'RESPONDING' };
-function setState(s) { state = s; statusEl.textContent = labels[s]; mic.classList.toggle('on', s === 'listening'); }
+function setState(s) {
+  state = s; statusEl.textContent = labels[s];
+  mic.classList.toggle('on', s === 'listening'); micChat.classList.toggle('on', s === 'listening');
+}
 function log(who, text) {
-  const d = document.createElement('div'); d.className = 'msg' + (who === 'user' ? ' user' : '');
+  const d = document.createElement('div'); d.className = 'msg' + (who === 'user' ? ' user' : ' thanos');
   d.innerHTML = `<b>${who === 'user' ? 'SIR' : 'THANOS'}</b>`; d.append(text);
   logEl.append(d); logEl.scrollTop = logEl.scrollHeight;
 }
+
+function openChat() { document.body.classList.add('chat-open'); setTimeout(() => txt.focus(), 200); }
+function closeChatView() { document.body.classList.remove('chat-open'); }
+chatToggle.onclick = openChat;
+closeChat.onclick = closeChatView;
 
 // ---------- Voice out ----------
 function speak(text) {
@@ -146,30 +250,15 @@ function speak(text) {
 }
 
 // ---------- Brain ----------
-let goal = localStorage.getItem('thanos_goal') || '';
-if (goal) goalEl.textContent = 'AKTUELLES ZIEL: ' + goal.toUpperCase();
-function setGoal(g) {
-  goal = g.replace(/[.!]$/, '').trim();
-  try { localStorage.setItem('thanos_goal', goal); } catch {}
-  goalEl.textContent = goal ? 'AKTUELLES ZIEL: ' + goal.toUpperCase() : '';
-}
-
 // Offline fallback (regelbasiert) – greift, wenn kein Server/Key verfügbar ist.
 function localThink(input) {
   const q = input.toLowerCase().trim();
-  const m = q.match(/(?:mein ziel ist|ziel:|ich will|ich möchte)\s*(.+)/);
-  if (m) {
-    setGoal(m[1]);
-    return `Verstanden. Ziel gespeichert: ${goal}. Ich schlage vor, wir zerlegen es in kleine Schritte. Was ist der erste Schritt?`;
-  }
-  if (/was ist mein ziel|welches ziel/.test(q)) return goal ? `Ihr aktuelles Ziel lautet: ${goal}.` : 'Sie haben noch kein Ziel festgelegt.';
-  if (/ziel löschen|vergiss.*ziel/.test(q)) { setGoal(''); return 'Ziel gelöscht.'; }
   if (/uhr|zeit/.test(q)) return 'Es ist ' + new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) + ' Uhr.';
   if (/datum|welcher tag/.test(q)) return 'Heute ist ' + new Date().toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' }) + '.';
-  if (/hallo|hi |hey|guten/.test(q + ' ')) return 'Guten Tag, Sir. Alle Systeme sind bereit. Was ist Ihr Ziel?';
+  if (/hallo|hi |hey|guten/.test(q + ' ')) return 'Guten Tag, Sir. Alle Systeme sind bereit. Welche Aufgabe soll ich übernehmen?';
   if (/wer bist du/.test(q)) return 'Ich bin T.H.A.N.O.S., Ihr persönlicher Assistent.';
   if (/danke/.test(q)) return 'Stets zu Diensten, Sir.';
-  return goal ? `Notiert: "${input}". Das bringt uns näher an ${goal}.` : `Notiert. Sagen Sie "Mein Ziel ist …", damit ich es speichere.`;
+  return `Verstanden, Sir. Ich kümmere mich um: "${input}".`;
 }
 
 // Verlauf für die API (letzte Nachrichten)
@@ -181,13 +270,11 @@ async function think(input) {
     const res = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ messages: history.slice(-20), goal }),
+      body: JSON.stringify({ messages: history.slice(-20) }),
     });
     if (!res.ok) throw new Error('offline');
     const { text } = await res.json();
-    let reply = text || '';
-    const m = reply.match(/\[\[ZIEL:\s*(.+?)\]\]/i);
-    if (m) { setGoal(m[1]); reply = reply.replace(m[0], '').trim(); }
+    const reply = (text || '').trim();
     if (!reply) throw new Error('empty');
     history.push({ role: 'assistant', content: reply });
     return reply;
@@ -200,6 +287,7 @@ async function think(input) {
 
 function handle(input) {
   if (!input.trim()) return;
+  if (!document.body.classList.contains('chat-open')) openChat();
   log('user', input); setState('thinking');
   think(input).then(speak);
 }
@@ -235,9 +323,12 @@ function startWake() {
 function stopWake() { wakeOn = false; wakeRec?.stop(); wakeRec = null; }
 wakeBtn.onclick = () => {
   if (!SR) return speak('Spracherkennung wird von diesem Browser nicht unterstützt.');
-  wakeOn = !wakeOn; wakeBtn.classList.toggle('on', wakeOn);
+  wakeOn = !wakeOn;
+  wakeBtn.classList.toggle('on', wakeOn);
+  wakeBtn.textContent = wakeOn ? 'FREIHÄNDIG AN' : 'FREIHÄNDIG AUS';
   if (wakeOn) startWake(); else stopWake();
 };
+
 // Mikrofonpegel treibt den Orb an, solange zugehört wird
 let audioCtx = null, analyser = null, levelData = null, levelStream = null;
 async function startLevelMeter() {
@@ -270,8 +361,9 @@ function listen() {
   try { rec.start(); } catch {}
 }
 mic.onclick = listen;
-cv.onclick = listen;
-txt.onkeydown = (e) => { if (e.key === 'Enter') { handle(txt.value); txt.value = ''; } };
+micChat.onclick = listen;
+sendBtn.onclick = () => { const v = txt.value; txt.value = ''; handle(v); };
+txt.onkeydown = (e) => { if (e.key === 'Enter') { const v = txt.value; txt.value = ''; handle(v); } };
 addEventListener('keydown', (e) => { if (e.code === 'Space' && document.activeElement !== txt) { e.preventDefault(); listen(); } });
 speechSynthesis?.getVoices();
 rec && (rec.onend = () => { if (state === 'listening') setState('idle'); stopLevelMeter(); });
