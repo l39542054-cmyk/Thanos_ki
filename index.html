@@ -163,16 +163,16 @@ function frame(ts) {
   const tc = colors[state]; col = col.map((v, i) => v + (tc[i] - v) * 0.05);
   const [r, g, b] = col.map(Math.round), C = (a) => `rgba(${r},${g},${b},${a})`;
   ctx.clearRect(0, 0, W, H);
-  const cx = W / 2, cy = H * 0.42, R = Math.min(W, H) * 0.2 * (1 + energy * 0.25 + Math.sin(t * 2) * 0.015);
+  const cx = W / 2, cy = H * 0.5, R = Math.min(W, H) * 0.46 * (1 + energy * 0.2 + Math.sin(t * 2) * 0.012);
 
   // glow
-  const gr = ctx.createRadialGradient(cx, cy, 0, cx, cy, R * 2.2);
+  const gr = ctx.createRadialGradient(cx, cy, 0, cx, cy, R * 1.5);
   gr.addColorStop(0, C(0.35 + energy * 0.3)); gr.addColorStop(0.45, C(0.08)); gr.addColorStop(1, C(0));
-  ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(cx, cy, R * 2.2, 0, 7); ctx.fill();
+  ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(cx, cy, R * 1.5, 0, 7); ctx.fill();
 
   // rotating HUD rings
   ctx.lineWidth = 1.5;
-  [[1.35, 0.4, 0.6], [1.55, -0.25, 0.35], [1.8, 0.12, 0.2]].forEach(([k, sp, a], i) => {
+  [[1.06, 0.4, 0.6], [1.12, -0.25, 0.35], [1.2, 0.12, 0.2]].forEach(([k, sp, a], i) => {
     ctx.strokeStyle = C(a);
     const segs = 6 + i * 6;
     for (let s = 0; s < segs; s++) {
@@ -184,8 +184,8 @@ function frame(ts) {
   ctx.strokeStyle = C(0.3);
   for (let i = 0; i < 120; i++) {
     const a = (i / 120) * Math.PI * 2 - t * 0.05, l = i % 10 ? 4 : 10;
-    ctx.beginPath(); ctx.moveTo(cx + Math.cos(a) * R * 2, cy + Math.sin(a) * R * 2);
-    ctx.lineTo(cx + Math.cos(a) * (R * 2 + l), cy + Math.sin(a) * (R * 2 + l)); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx + Math.cos(a) * R * 1.28, cy + Math.sin(a) * R * 1.28);
+    ctx.lineTo(cx + Math.cos(a) * (R * 1.28 + l), cy + Math.sin(a) * (R * 1.28 + l)); ctx.stroke();
   }
 
   // particle sphere
