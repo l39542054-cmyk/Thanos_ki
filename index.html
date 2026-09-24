@@ -213,7 +213,7 @@ function setState(s) {
 }
 function log(who, text) {
   const d = document.createElement('div'); d.className = 'msg' + (who === 'user' ? ' user' : ' thanos');
-  d.innerHTML = `<b>${who === 'user' ? 'SIR' : 'THANOS'}</b>`; d.append(text);
+  d.innerHTML = `<b>${who === 'user' ? 'LÜC' : 'THANOS'}</b>`; d.append(text);
   logEl.append(d); logEl.scrollTop = logEl.scrollHeight;
 }
 
@@ -227,7 +227,7 @@ function speakBrowser(text) {
   if (!('speechSynthesis' in window)) return setState('idle');
   speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance(text);
-  u.lang = 'de-DE'; u.rate = 1.45; u.pitch = 0.82;
+  u.lang = 'de-DE'; u.rate = 1.62; u.pitch = 0.82;
   const voices = speechSynthesis.getVoices().filter(v => v.lang.startsWith('de'));
   const v = voices.find(v => /Google/i.test(v.name) && /male|Markus|Yannick|Conrad|Stefan/i.test(v.name))
          || voices.find(v => /Google/i.test(v.name))
@@ -269,10 +269,10 @@ function localThink(input) {
   const q = input.toLowerCase().trim();
   if (/uhr|zeit/.test(q)) return 'Es ist ' + new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) + ' Uhr.';
   if (/datum|welcher tag/.test(q)) return 'Heute ist ' + new Date().toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' }) + '.';
-  if (/hallo|hi |hey|guten/.test(q + ' ')) return 'Guten Tag, Sir. Alle Systeme sind bereit. Welche Aufgabe soll ich übernehmen?';
+  if (/hallo|hi |hey|guten/.test(q + ' ')) return 'Guten Tag, Lüc. Alle Systeme sind bereit. Welche Aufgabe soll ich übernehmen?';
   if (/wer bist du/.test(q)) return 'Ich bin T.H.A.N.O.S., Ihr persönlicher Assistent.';
-  if (/danke/.test(q)) return 'Stets zu Diensten, Sir.';
-  return `Verstanden, Sir. Ich kümmere mich um: "${input}".`;
+  if (/danke/.test(q)) return 'Stets zu Diensten, Lüc.';
+  return `Verstanden, Lüc. Ich kümmere mich um: "${input}".`;
 }
 
 // Verlauf für die API (letzte Nachrichten)

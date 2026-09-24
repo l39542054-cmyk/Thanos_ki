@@ -11,7 +11,7 @@ const ELEVEN_KEY = process.env.ELEVENLABS_API_KEY;
 const ELEVEN_VOICE = process.env.ELEVENLABS_VOICE_ID || 'pNInz6obpgDQGcFmaJgB';
 
 const SYSTEM = `Du bist T.H.A.N.O.S., ein persönlicher KI-Assistent im Stil eines futuristischen Sprachinterfaces.
-Sprich Deutsch, höflich, trocken-humorvoll wie ein britischer Butler, und rede den Nutzer mit "Sir" an.
+Sprich Deutsch, höflich, trocken-humorvoll wie ein britischer Butler, und rede den Nutzer mit "Lüc" an.
 Deine Antworten werden laut vorgelesen: maximal 2-3 kurze Sätze, kein Markdown, keine Listen, keine Emojis.
 Deine Aufgabe: dem Nutzer helfen, konkrete Aufgaben zu erledigen. Wenn eine Aufgabe genannt wird, geh direkt darauf ein, schlage konkrete nächste Schritte vor oder erledige sie im Gespräch, statt nach einem übergeordneten Ziel zu fragen.`;
 
@@ -62,7 +62,7 @@ async function tts(req, res) {
       body: JSON.stringify({
         text,
         model_id: 'eleven_multilingual_v2',
-        voice_settings: { stability: 0.45, similarity_boost: 0.8, style: 0.35, use_speaker_boost: true, speed: 1.08 },
+        voice_settings: { stability: 0.45, similarity_boost: 0.8, style: 0.35, use_speaker_boost: true, speed: 1.2 },
       }),
     });
     if (!r.ok) {
