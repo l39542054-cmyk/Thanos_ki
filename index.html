@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>J.A.R.V.I.S.</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Rajdhani:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root { --c: #00e5ff; --c2: #0077ff; --bg: #02060d; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: var(--bg); color: var(--c); font-family: 'Rajdhani', sans-serif; overflow: hidden; }
+  body { background: radial-gradient(ellipse at center, #06182b 0%, var(--bg) 70%); }
+  canvas { position: fixed; inset: 0; width: 100%; height: 100%; }
+  .hud { position: fixed; inset: 0; pointer-events: none; display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 24px 16px; }
+  .title { font-family: 'Orbitron', sans-serif; font-size: clamp(18px, 3vw, 28px); letter-spacing: .6em; text-shadow: 0 0 12px var(--c); }
+  .status { font-family: 'Orbitron', sans-serif; font-size: 12px; letter-spacing: .3em; opacity: .8; margin-top: 6px; text-align: center; }
+  .bottom { width: min(720px, 100%); pointer-events: auto; display: flex; flex-direction: column; gap: 10px; }
+  .log { max-height: 26vh; overflow-y: auto; font-size: 17px; display: flex; flex-direction: column; gap: 6px; scrollbar-width: none; }
+  .msg { padding: 6px 12px; border-left: 2px solid var(--c); background: rgba(0,229,255,.06); }
+  .msg.user { border-color: #fff; color: #dff; align-self: flex-end; border-left: none; border-right: 2px solid #fff; text-align: right; }
+  .msg b { font-family: 'Orbitron'; font-size: 11px; letter-spacing: .2em; opacity: .7; display: block; }
+  .row { display: flex; gap: 8px; }
+  input { flex: 1; background: rgba(0,229,255,.05); border: 1px solid rgba(0,229,255,.4); color: #e6fdff; padding: 12px 14px; font: inherit; font-size: 17px; outline: none; }
+  input:focus { border-color: var(--c); box-shadow: 0 0 12px rgba(0,229,255,.4); }
+  button { background: transparent; border: 1px solid var(--c); color: var(--c); padding: 0 18px; font-family: 'Orbitron'; letter-spacing: .15em; cursor: pointer; }
+  button:hover, button.on { background: var(--c); color: var(--bg); box-shadow: 0 0 20px var(--c); }
+  .goal { font-family: 'Orbitron'; font-size: 12px; letter-spacing: .2em; text-align: center; min-height: 1em; }
+  .hint { font-size: 13px; opacity: .55; text-align: center; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="hud">
+  <div>
+    <div class="title">J.A.R.V.I.S.</div>
+    <div class="status" id="status">SYSTEM ONLINE</div>
+  </div>
+  <div class="bottom">
+    <div class="goal" id="goal"></div>
+    <div class="log" id="log"></div>
+    <div class="row">
+      <input id="txt" placeholder="Sag oder schreib dein Ziel…" autocomplete="off">
+      <button id="mic" title="Sprechen (Leertaste)">MIC</button>
+    </div>
+    <div class="hint">Klick auf den Orb oder drück MIC zum Sprechen · Enter zum Senden</div>
+  </div>
+</div>
+<script>
+// ---------- Orb ----------
+const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+let W, H, DPR = Math.min(devicePixelRatio || 1, 2);
+function resize() { W = innerWidth; H = innerHeight; cv.width = W * DPR; cv.height = H * DPR; ctx.setTransform(DPR, 0, 0, DPR, 0, 0); }
+addEventListener('resize', resize); resize();
+
+let state = 'idle';           // idle | listening | thinking | speaking
+let energy = 0, target = 0;   // audio/activity level 0..1
+const pts = Array.from({ length: 420 }, () => {
+  const u = Math.random() * 2 - 1, t = Math.random() * Math.PI * 2;
+  return { x: Math.sqrt(1 - u * u) * Math.cos(t), y: Math.sqrt(1 - u * u) * Math.sin(t), z: u };
+});
+const colors = { idle: [0, 229, 255], listening: [255, 255, 255], thinking: [255, 170, 0], speaking: [0, 160, 255] };
+let col = [0, 229, 255];
+
+function frame(ts) {
+  const t = ts / 1000;
+  energy += (target - energy) * 0.15;
+  const tc = colors[state]; col = col.map((v, i) => v + (tc[i] - v) * 0.05);
+  const [r, g, b] = col.map(Math.round), C = (a) => `rgba(${r},${g},${b},${a})`;
+  ctx.clearRect(0, 0, W, H);
+  const cx = W / 2, cy = H * 0.42, R = Math.min(W, H) * 0.2 * (1 + energy * 0.25 + Math.sin(t * 2) * 0.015);
+
+  // glow
+  const gr = ctx.createRadialGradient(cx, cy, 0, cx, cy, R * 2.2);
+  gr.addColorStop(0, C(0.35 + energy * 0.3)); gr.addColorStop(0.45, C(0.08)); gr.addColorStop(1, C(0));
+  ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(cx, cy, R * 2.2, 0, 7); ctx.fill();
+
+  // rotating HUD rings
+  ctx.lineWidth = 1.5;
+  [[1.35, 0.4, 0.6], [1.55, -0.25, 0.35], [1.8, 0.12, 0.2]].forEach(([k, sp, a], i) => {
+    ctx.strokeStyle = C(a);
+    const segs = 6 + i * 6;
+    for (let s = 0; s < segs; s++) {
+      const a0 = t * sp + (s / segs) * Math.PI * 2;
+      ctx.beginPath(); ctx.arc(cx, cy, R * k, a0, a0 + (Math.PI * 2 / segs) * 0.6); ctx.stroke();
+    }
+  });
+  // ticks
+  ctx.strokeStyle = C(0.3);
+  for (let i = 0; i < 120; i++) {
+    const a = (i / 120) * Math.PI * 2 - t * 0.05, l = i % 10 ? 4 : 10;
+    ctx.beginPath(); ctx.moveTo(cx + Math.cos(a) * R * 2, cy + Math.sin(a) * R * 2);
+    ctx.lineTo(cx + Math.cos(a) * (R * 2 + l), cy + Math.sin(a) * (R * 2 + l)); ctx.stroke();
+  }
+
+  // particle sphere
+  const ry = t * 0.35, rx = Math.sin(t * 0.2) * 0.4;
+  const cyy = Math.cos(ry), syy = Math.sin(ry), cxx = Math.cos(rx), sxx = Math.sin(rx);
+  for (const p of pts) {
+    let x = p.x * cyy - p.z * syy, z = p.x * syy + p.z * cyy, y = p.y * cxx - z * sxx; z = p.y * sxx + z * cxx;
+    const wob = 1 + energy * 0.18 * Math.sin(t * 8 + p.x * 6 + p.y * 5);
+    const s = (z + 2) / 3;
+    ctx.fillStyle = C(0.15 + s * 0.75);
+    ctx.beginPath(); ctx.arc(cx + x * R * wob, cy + y * R * wob, 0.6 + s * 1.6, 0, 7); ctx.fill();
+  }
+  // core
+  const core = ctx.createRadialGradient(cx, cy, 0, cx, cy, R * 0.45);
+  core.addColorStop(0, 'rgba(255,255,255,0.9)'); core.addColorStop(0.3, C(0.6)); core.addColorStop(1, C(0));
+  ctx.fillStyle = core; ctx.beginPath(); ctx.arc(cx, cy, R * (0.45 + energy * 0.2), 0, 7); ctx.fill();
+
+  if (state === 'speaking') target = 0.4 + Math.random() * 0.6;
+  else if (state === 'thinking') target = 0.3 + Math.sin(t * 6) * 0.2;
+  else if (state === 'idle') target = 0;
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+// ---------- UI ----------
+const $ = (id) => document.getElementById(id);
+const statusEl = $('status'), logEl = $('log'), txt = $('txt'), mic = $('mic'), goalEl = $('goal');
+const labels = { idle: 'SYSTEM ONLINE', listening: 'LISTENING…', thinking: 'PROCESSING…', speaking: 'RESPONDING' };
+function setState(s) { state = s; statusEl.textContent = labels[s]; mic.classList.toggle('on', s === 'listening'); }
+function log(who, text) {
+  const d = document.createElement('div'); d.className = 'msg' + (who === 'user' ? ' user' : '');
+  d.innerHTML = `<b>${who === 'user' ? 'SIR' : 'JARVIS'}</b>`; d.append(text);
+  logEl.append(d); logEl.scrollTop = logEl.scrollHeight;
+}
+
+// ---------- Voice out ----------
+function speak(text) {
+  log('jarvis', text);
+  if (!('speechSynthesis' in window)) return setState('idle');
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = 'de-DE'; u.rate = 1.02; u.pitch = 0.85;
+  const v = speechSynthesis.getVoices().find(v => v.lang.startsWith('de') && /male|Markus|Yannick|Conrad|Stefan/i.test(v.name))
+         || speechSynthesis.getVoices().find(v => v.lang.startsWith('de'));
+  if (v) u.voice = v;
+  u.onstart = () => setState('speaking');
+  u.onend = u.onerror = () => setState('idle');
+  speechSynthesis.speak(u);
+}
+
+// ---------- Brain (local, replace with an LLM backend later) ----------
+let goal = localStorage.getItem('jarvis_goal') || '';
+if (goal) goalEl.textContent = 'AKTUELLES ZIEL: ' + goal.toUpperCase();
+function think(input) {
+  const q = input.toLowerCase().trim();
+  const m = q.match(/(?:mein ziel ist|ziel:|ich will|ich möchte)\s*(.+)/);
+  if (m) {
+    goal = m[1].replace(/[.!]$/, '');
+    try { localStorage.setItem('jarvis_goal', goal); } catch {}
+    goalEl.textContent = 'AKTUELLES ZIEL: ' + goal.toUpperCase();
+    return `Verstanden. Ziel gespeichert: ${goal}. Ich schlage vor, wir zerlegen es in kleine Schritte. Was ist der erste Schritt?`;
+  }
+  if (/was ist mein ziel|welches ziel/.test(q)) return goal ? `Ihr aktuelles Ziel lautet: ${goal}.` : 'Sie haben noch kein Ziel festgelegt.';
+  if (/ziel löschen|vergiss.*ziel/.test(q)) { goal = ''; try { localStorage.removeItem('jarvis_goal'); } catch {} goalEl.textContent = ''; return 'Ziel gelöscht.'; }
+  if (/uhr|zeit/.test(q)) return 'Es ist ' + new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) + ' Uhr.';
+  if (/datum|welcher tag/.test(q)) return 'Heute ist ' + new Date().toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' }) + '.';
+  if (/hallo|hi |hey|guten/.test(q + ' ')) return 'Guten Tag, Sir. Alle Systeme sind bereit. Was ist Ihr Ziel?';
+  if (/wer bist du/.test(q)) return 'Ich bin J.A.R.V.I.S., Ihr persönlicher Assistent.';
+  if (/danke/.test(q)) return 'Stets zu Diensten, Sir.';
+  return goal ? `Notiert: "${input}". Das bringt uns näher an ${goal}.` : `Notiert. Sagen Sie "Mein Ziel ist …", damit ich es speichere.`;
+}
+function handle(input) {
+  if (!input.trim()) return;
+  log('user', input); setState('thinking');
+  setTimeout(() => speak(think(input)), 600);
+}
+
+// ---------- Voice in ----------
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let rec = null;
+if (SR) {
+  rec = new SR(); rec.lang = 'de-DE'; rec.interimResults = true;
+  rec.onresult = (e) => {
+    const r = e.results[e.results.length - 1]; txt.value = r[0].transcript;
+    target = 0.3 + Math.random() * 0.4;
+    if (r.isFinal) { const v = txt.value; txt.value = ''; handle(v); }
+  };
+  rec.onend = () => { if (state === 'listening') setState('idle'); };
+  rec.onerror = () => setState('idle');
+}
+function listen() {
+  if (!rec) return speak('Spracherkennung wird von diesem Browser nicht unterstützt. Bitte Chrome oder Edge verwenden.');
+  if (state === 'listening') return rec.stop();
+  speechSynthesis.cancel(); setState('listening'); target = 0.15;
+  try { rec.start(); } catch {}
+}
+mic.onclick = listen;
+cv.onclick = listen;
+txt.onkeydown = (e) => { if (e.key === 'Enter') { handle(txt.value); txt.value = ''; } };
+addEventListener('keydown', (e) => { if (e.code === 'Space' && document.activeElement !== txt) { e.preventDefault(); listen(); } });
+speechSynthesis?.getVoices();
+</script>
+</body>
+</html>
