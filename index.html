@@ -213,7 +213,7 @@ function setState(s) {
 }
 function log(who, text) {
   const d = document.createElement('div'); d.className = 'msg' + (who === 'user' ? ' user' : ' thanos');
-  d.innerHTML = `<b>${who === 'user' ? 'LÜC' : 'THANOS'}</b>`; d.append(text);
+  d.innerHTML = `<b>${who === 'user' ? 'LUCA' : 'THANOS'}</b>`; d.append(text);
   logEl.append(d); logEl.scrollTop = logEl.scrollHeight;
 }
 
@@ -269,10 +269,10 @@ function localThink(input) {
   const q = input.toLowerCase().trim();
   if (/uhr|zeit/.test(q)) return 'Es ist ' + new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) + ' Uhr.';
   if (/datum|welcher tag/.test(q)) return 'Heute ist ' + new Date().toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' }) + '.';
-  if (/hallo|hi |hey|guten/.test(q + ' ')) return 'Guten Tag, Lüc. Alle Systeme sind bereit. Welche Aufgabe soll ich übernehmen?';
+  if (/hallo|hi |hey|guten/.test(q + ' ')) return 'Guten Tag, Luca. Alle Systeme sind bereit. Welche Aufgabe soll ich übernehmen?';
   if (/wer bist du/.test(q)) return 'Ich bin T.H.A.N.O.S., Ihr persönlicher Assistent.';
-  if (/danke/.test(q)) return 'Stets zu Diensten, Lüc.';
-  return `Verstanden, Lüc. Ich kümmere mich um: "${input}".`;
+  if (/danke/.test(q)) return 'Stets zu Diensten, Luca.';
+  return `Verstanden, Luca. Ich kümmere mich um: "${input}".`;
 }
 
 // Verlauf für die API (letzte Nachrichten)
