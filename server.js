@@ -83,6 +83,9 @@ http.createServer((req, res) => {
   if (req.method === 'GET' && (req.url === '/' || req.url === '/index.html')) {
     return send(res, 200, fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8'), 'text/html; charset=utf-8');
   }
+  if (req.method === 'GET' && (req.url === '/werbung' || req.url === '/werbung.html')) {
+    return send(res, 200, fs.readFileSync(path.join(__dirname, 'werbung.html'), 'utf8'), 'text/html; charset=utf-8');
+  }
   send(res, 404, 'Not found', 'text/plain');
 }).listen(PORT, () => {
   console.log(`T.H.A.N.O.S. online: http://localhost:${PORT}`);

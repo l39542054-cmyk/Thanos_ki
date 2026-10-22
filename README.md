@@ -23,8 +23,16 @@ Ohne `ELEVENLABS_API_KEY` spricht THANOS mit der Browser-Stimme (Web Speech API)
 - **FREIHÄNDIG**-Button: dauerhaft passiv zuhören, ansprechen mit "Thanos, …".
 - Sag oder schreib einfach deine Aufgabe – T.H.A.N.O.S. geht direkt darauf ein.
 
+## Werbefilm „KI stellt sich vor“
+
+Unter `http://localhost:3000/werbung` läuft ein animierter Werbefilm (ca. 1:40 Min.), der Künstliche Intelligenz der Welt vorstellt und erklärt: was KI ist, wie sie lernt, wie Chatbots schreiben, ihre Geschichte, wo sie heute hilft und wo ihre Grenzen liegen. `werbung.html` kann auch direkt im Browser geöffnet werden.
+
+- Spielt automatisch ab; Kapitel unten anklicken, Leertaste = Pause, Pfeiltasten = vor/zurück
+- **Sprecher**-Button (oder Taste `T`): deutscher Sprecher über die Browser-Stimme
+
 ## Aufbau
 
 - `index.html` – das komplette Frontend (Orb-Rendering per Canvas, Liquid-Glass-UI, Web Speech API)
+- `werbung.html` – der KI-Werbefilm (eigenständig, ohne Server lauffähig)
 - `server.js` – kleiner Node-Server: liefert `index.html` aus und proxied `/api/chat` zur Claude API sowie `/api/tts` zu ElevenLabs (Keys bleiben serverseitig)
 - `package.json` – `npm start` startet `server.js`
