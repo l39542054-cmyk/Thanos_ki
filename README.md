@@ -27,8 +27,8 @@ Ohne `ELEVENLABS_API_KEY` spricht THANOS mit der Browser-Stimme (Web Speech API)
 
 Unter `http://localhost:3000/werbung` läuft ein animierter Werbefilm (ca. 1:40 Min.), der Künstliche Intelligenz der Welt vorstellt und erklärt: was KI ist, wie sie lernt, wie Chatbots schreiben, ihre Geschichte, wo sie heute hilft und wo ihre Grenzen liegen. `werbung.html` kann auch direkt im Browser geöffnet werden.
 
-- Spielt automatisch ab; Kapitel unten anklicken, Leertaste = Pause, Pfeiltasten = vor/zurück
-- **Sprecher**-Button (oder Taste `T`): deutscher Sprecher über die Browser-Stimme
+- Reine Animation ohne Ton; spielt automatisch ab
+- Kapitel unten anklicken, Leertaste = Pause, Pfeiltasten = vor/zurück
 
 ## Aufbau
 

@@ -155,8 +155,6 @@
   .bar-ctl { position: relative; z-index: 2; display: flex; align-items: center; gap: 12px; padding-top: 10px; padding-bottom: max(14px, env(safe-area-inset-bottom, 0px)); }
   .icon-btn { flex: none; width: 42px; height: 42px; border-radius: 50%; border: 1px solid var(--line); background: var(--panel); color: var(--fg); display: grid; place-items: center; cursor: pointer; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
   .icon-btn svg { width: 18px; height: 18px; }
-  .icon-btn[aria-pressed="true"] { border-color: var(--signal); color: var(--signal); }
-  .voice-btn { width: auto; border-radius: 999px; padding: 0 14px; display: flex; gap: 8px; font: 500 13px var(--body); }
   #chapters { flex: 1; min-width: 0; display: flex; gap: 6px; }
   .chap { flex: 1; min-width: 0; background: none; border: 0; color: var(--muted); cursor: pointer; display: flex; flex-direction: column; gap: 7px; padding: 6px 0; text-align: left; font: 500 12px var(--body); }
   .chap .track { display: block; height: 3px; border-radius: 2px; background: rgba(236, 232, 255, .14); overflow: hidden; }
@@ -188,8 +186,6 @@
     .grid6 .card, .limits .card { padding: 14px; }
     .grid6 p, .limits p, .timeline p { font-size: 13px; }
     .net { max-height: 200px; }
-    .voice-btn .t { display: none; }
-    .voice-btn { width: 42px; padding: 0; justify-content: center; }
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -344,7 +340,6 @@
         <p class="muted a" style="--d:2.4s">Neugierig geworden? Stell ihr deine erste Frage.</p>
         <div class="cta a" style="--d:3.2s">
           <button class="btn" type="button" id="replay">Nochmal ansehen</button>
-          <button class="btn ghost" type="button" id="voiceCta">Mit Sprecher ansehen</button>
         </div>
         <div class="sig a" style="--d:4s">Präsentiert von T.H.A.N.O.S.</div>
       </div>
@@ -357,10 +352,6 @@
       <svg viewBox="0 0 24 24" fill="currentColor" id="playIcon"><path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/></svg>
     </button>
     <div id="chapters"></div>
-    <button class="icon-btn voice-btn" type="button" id="voice" aria-pressed="false" title="Sprecher (T)">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path id="waves" d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/></svg>
-      <span class="t" id="voiceLbl">Sprecher aus</span>
-    </button>
   </nav>
 </div>
 
@@ -370,18 +361,6 @@
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const stage = $('#stage');
   const scenes = [...document.querySelectorAll('.scene')];
-
-  // Sprechertext je Szene (gleiche Reihenfolge wie die Szenen).
-  const SAY = [
-    'Hallo, Welt. Darf ich vorstellen: Künstliche Intelligenz. Du begegnest ihr jeden Tag. Zeit, sie richtig kennenzulernen.',
-    'Was ist KI? Ein normales Programm folgt Regeln, die ein Mensch Schritt für Schritt aufschreibt. Eine KI bekommt stattdessen Beispiele mit Lösungen und findet die Regeln selbst. So lernt sie, zu erkennen, zu verstehen und Neues zu erzeugen.',
-    'Wie lernt eine KI? Mit einem künstlichen neuronalen Netz. Sie sieht ein Beispiel, rät eine Antwort und misst ihren Fehler. Dann stellt sie Millionen kleiner Gewichte ein wenig nach. Das wiederholt sie millionenfach, bis die Antworten stimmen.',
-    'Und wie schreibt ein Chatbot? Ein Sprachmodell zerlegt Text in kleine Stücke, sogenannte Tokens. Es berechnet, welches Stück am wahrscheinlichsten als nächstes kommt, hängt es an und rechnet weiter.',
-    'Die Idee ist älter, als viele denken. 1950 fragte Alan Turing, ob Maschinen denken können. 1956 bekam das Fach seinen Namen. Es folgten Deep Blue, Deep Learning, AlphaGo und der Transformer. Seit 2022 nutzen Millionen Menschen KI-Assistenten.',
-    'Wo hilft KI heute? In der Medizin und in der Forschung, bei der Wettervorhersage, beim Übersetzen, im Straßenverkehr und in deinem Smartphone.',
-    'Aber: KI ist ein Werkzeug, kein Wesen. Sie kann sich irren und dabei überzeugend klingen. Sie übernimmt Vorurteile aus ihren Daten. Deshalb gibt es Regeln wie den europäischen AI Act. Und eine Faustregel: KI hilft. Der Mensch prüft.',
-    'KI. Von Menschen gebaut. Für Menschen gemacht. Stell ihr deine erste Frage.',
-  ];
 
   // ---------- Neuronales Netz (Szene 3) ----------
   (function buildNet() {
@@ -457,38 +436,6 @@
     return { setMode, draw };
   })();
 
-  // ---------- Sprecher (Web Speech API) ----------
-  const canSpeak = 'speechSynthesis' in window;
-  let voice = null, speaking = false, speakToken = 0, voiceOn = false;
-  function pickVoice() {
-    const vs = speechSynthesis.getVoices().filter(v => /^de/i.test(v.lang));
-    voice = vs.find(v => /natural|google|neural/i.test(v.name)) || vs[0] || null;
-  }
-  if (canSpeak) { pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; }
-  else { $('#voice').hidden = true; $('#voiceCta').hidden = true; }
-
-  function speak(text) {
-    if (!canSpeak) return;
-    const tok = ++speakToken;
-    speechSynthesis.cancel();
-    const parts = text.match(/[^.!?]+[.!?]*/g) || [text];
-    speaking = true;
-    parts.forEach((p, k) => {
-      const u = new SpeechSynthesisUtterance(p.trim());
-      u.lang = 'de-DE'; if (voice) u.voice = voice; u.rate = 1.03;
-      if (k === parts.length - 1) u.onend = u.onerror = () => { if (tok === speakToken) speaking = false; };
-      speechSynthesis.speak(u);
-    });
-  }
-  function stopSpeech() { speakToken++; speaking = false; if (canSpeak) speechSynthesis.cancel(); }
-  function setVoice(on) {
-    voiceOn = on && canSpeak;
-    $('#voice').setAttribute('aria-pressed', voiceOn);
-    $('#voiceLbl').textContent = voiceOn ? 'Sprecher an' : 'Sprecher aus';
-    $('#waves').style.opacity = voiceOn ? 1 : .25;
-    if (voiceOn && playing) speak(SAY[cur]); else stopSpeech();
-  }
-
   // ---------- Ablauf ----------
   const chapters = $('#chapters');
   const chaps = scenes.map((s, i) => {
@@ -513,7 +460,6 @@
     scenes[cur].scrollTop = 0;
     chaps.forEach((c, j) => { c.b.classList.toggle('cur', j === cur); c.fill.style.transform = `scaleX(${j < cur ? 1 : 0})`; });
     field.setMode(cur);
-    if (voiceOn && playing) speak(SAY[cur]); else stopSpeech();
   }
   function setPlaying(v) {
     if (v && ended) { playing = true; go(0); }
@@ -521,7 +467,6 @@
     stage.classList.toggle('paused', !v);
     $('#playIcon').innerHTML = v ? PAUSE : PLAY;
     $('#play').setAttribute('aria-label', v ? 'Pause' : (ended ? 'Nochmal abspielen' : 'Abspielen'));
-    if (!v) stopSpeech(); else if (voiceOn && !speaking) speak(SAY[cur]);
   }
 
   let last = performance.now();
@@ -531,8 +476,7 @@
       elapsed += dt;
       const d = +scenes[cur].dataset.dur;
       chaps[cur].fill.style.transform = `scaleX(${Math.min(elapsed / d, 1)})`;
-      const waitVoice = voiceOn && speaking && elapsed < d * 2.5;
-      if (elapsed >= d && !waitVoice) {
+      if (elapsed >= d) {
         if (cur < scenes.length - 1) go(cur + 1);
         else { ended = true; setPlaying(false); }
       }
@@ -542,15 +486,12 @@
   }
 
   $('#play').onclick = () => setPlaying(!playing);
-  $('#voice').onclick = () => setVoice(!voiceOn);
   $('#replay').onclick = () => { go(0); setPlaying(true); };
-  $('#voiceCta').onclick = () => { go(0); setPlaying(true); setVoice(true); };
   addEventListener('keydown', e => {
     if (e.target.closest && e.target.closest('button') && (e.key === ' ' || e.key === 'Enter')) return;
     if (e.key === ' ') { e.preventDefault(); setPlaying(!playing); }
     else if (e.key === 'ArrowRight') { go(cur + 1); setPlaying(true); }
     else if (e.key === 'ArrowLeft') { go(cur - 1); setPlaying(true); }
-    else if (e.key.toLowerCase() === 't') setVoice(!voiceOn);
   });
 
   go(0);
