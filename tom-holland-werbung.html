@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tom Holland Tribute</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #07070c;
+    --red: #e3242b;
+    --blue: #2f6bff;
+    --ink: #f4f1ea;
+    --dim: rgba(244,241,234,.55);
+    --gold: #f2c14e;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: var(--bg); color: var(--ink); font-family: 'Rajdhani', sans-serif; overflow: hidden; }
+
+  .stage { position: fixed; inset: 0; overflow: hidden; }
+  .stage::after { /* Kino-Vignette + Filmkorn-Gefühl */
+    content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 20;
+    background: radial-gradient(ellipse at center, transparent 45%, rgba(0,0,0,.75) 100%);
+  }
+  .bars::before, .bars::after { /* Letterbox */
+    content: ''; position: absolute; left: 0; right: 0; height: 7vh; background: #000; z-index: 21;
+  }
+  .bars::before { top: 0; } .bars::after { bottom: 0; }
+
+  .scene {
+    position: absolute; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; text-align: center; padding: 0 16px;
+    opacity: 0; visibility: hidden; transition: opacity .8s ease, visibility 0s .8s;
+  }
+  .scene.on { opacity: 1; visibility: visible; transition: opacity .8s ease, visibility 0s; }
+
+  .kicker { font-size: clamp(14px, 2.2vw, 20px); letter-spacing: .4em; text-transform: uppercase; color: var(--dim); }
+  .big { font-family: 'Bebas Neue', sans-serif; font-size: clamp(52px, 12vw, 160px); line-height: .9; letter-spacing: .02em; }
+  .mid { font-family: 'Bebas Neue', sans-serif; font-size: clamp(34px, 7vw, 84px); line-height: 1; }
+  .year { font-family: 'Bebas Neue', sans-serif; color: var(--red); font-size: clamp(22px, 4vw, 44px); letter-spacing: .1em; }
+  .sub { font-size: clamp(16px, 2.6vw, 26px); color: var(--dim); max-width: 760px; margin-top: 14px; }
+
+  /* Text-Einblendungen */
+  .rise { opacity: 0; transform: translateY(30px); }
+  .on .rise { animation: rise .9s cubic-bezier(.22,1,.36,1) forwards; }
+  .on .rise.d1 { animation-delay: .35s; } .on .rise.d2 { animation-delay: .7s; } .on .rise.d3 { animation-delay: 1.05s; }
+  @keyframes rise { to { opacity: 1; transform: none; } }
+
+  .zoom { opacity: 0; transform: scale(1.5); filter: blur(10px); }
+  .on .zoom { animation: zoom 1.1s cubic-bezier(.22,1,.36,1) forwards; }
+  @keyframes zoom { to { opacity: 1; transform: none; filter: none; } }
+
+  /* Szene 1: Skyline */
+  .skyline { position: absolute; bottom: 7vh; left: 0; width: 100%; height: 38vh; }
+  .skyline path { fill: none; stroke: rgba(244,241,234,.25); stroke-width: 2; stroke-dasharray: 3000; stroke-dashoffset: 3000; }
+  .on .skyline path { animation: draw 3.5s ease forwards; }
+  @keyframes draw { to { stroke-dashoffset: 0; } }
+
+  /* Szene 2: Bühne / Spotlight */
+  .spot {
+    position: absolute; top: -10vh; left: 50%; width: 70vmin; height: 120vh; transform: translateX(-50%);
+    background: radial-gradient(ellipse at top, rgba(242,193,78,.35), transparent 70%);
+    clip-path: polygon(42% 0, 58% 0, 100% 100%, 0 100%); opacity: 0;
+  }
+  .on .spot { animation: spot 4s ease forwards; }
+  @keyframes spot { 0% { opacity: 0; } 20% { opacity: 1; } 60% { opacity: .7; } 100% { opacity: 1; } }
+  .dancer { width: clamp(70px, 12vw, 120px); margin-bottom: 18px; fill: var(--gold); opacity: 0; }
+  .on .dancer { animation: twirl 2.4s ease forwards .3s; }
+  @keyframes twirl { 0% { opacity: 0; transform: rotateY(0) translateY(20px); } 50% { opacity: 1; } 100% { opacity: 1; transform: rotateY(720deg); } }
+
+  /* Szene 3: Welle */
+  .waves { position: absolute; bottom: 7vh; left: -10%; width: 120%; height: 34vh; }
+  .waves path { fill: rgba(47,107,255,.18); }
+  .on .waves .w1 { animation: wave 4s ease-in-out infinite; }
+  .on .waves .w2 { animation: wave 5s ease-in-out infinite reverse; fill: rgba(47,107,255,.12); }
+  @keyframes wave { 50% { transform: translateX(-4%) translateY(8px); } }
+
+  /* Szene 4: Netz */
+  .web { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .web line, .web polygon { stroke: rgba(244,241,234,.28); stroke-width: 1.2; fill: none; stroke-dasharray: 1400; stroke-dashoffset: 1400; }
+  .on .web line { animation: draw 1.2s ease-out forwards; }
+  .on .web polygon { animation: draw 1.6s ease-out forwards .6s; }
+  .flash { position: absolute; inset: 0; background: var(--red); opacity: 0; mix-blend-mode: screen; }
+  .on .flash { animation: flash .9s ease-out .2s; }
+  @keyframes flash { 0% { opacity: 0; } 15% { opacity: .55; } 100% { opacity: 0; } }
+  .scene .sub, .scene .year { position: relative; text-shadow: 0 0 12px #07070c, 0 0 24px #07070c; }
+  .hero-word { background: linear-gradient(90deg, var(--red), #ff6a6f 45%, var(--blue)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+
+  /* Szene 5: Filmrolle */
+  .reel { display: flex; gap: 18px; margin-top: 28px; will-change: transform; }
+  .on .reel { animation: reel 7s linear forwards; }
+  @keyframes reel { from { transform: translateX(40%); } to { transform: translateX(-40%); } }
+  .card {
+    flex: 0 0 auto; width: clamp(130px, 20vw, 210px); aspect-ratio: 2/3; border-radius: 10px; padding: 14px;
+    display: flex; flex-direction: column; justify-content: flex-end; text-align: left;
+    border: 1px solid rgba(244,241,234,.18); box-shadow: 0 20px 40px rgba(0,0,0,.5);
+    background: linear-gradient(160deg, var(--a), #0d0d16 75%);
+  }
+  .card b { font-family: 'Bebas Neue', sans-serif; font-weight: 400; font-size: clamp(20px, 2.6vw, 30px); line-height: 1; }
+  .card span { font-size: 14px; color: var(--dim); margin-top: 4px; }
+
+  /* Szene 6: Drei Wörter */
+  .triad { display: flex; gap: clamp(14px, 4vw, 48px); flex-wrap: wrap; justify-content: center; }
+  .triad .big { font-size: clamp(44px, 10vw, 130px); }
+  .triad .big:nth-child(3) { color: var(--red); }
+
+  /* Finale */
+  .final-name { font-family: 'Bebas Neue', sans-serif; font-size: clamp(64px, 17vw, 240px); line-height: .85; letter-spacing: .03em; }
+  .final-name .t { display: inline-block; opacity: 0; transform: translateY(60px) rotate(8deg); }
+  .on .final-name .t { animation: letter .8s cubic-bezier(.22,1,.36,1) forwards; animation-delay: calc(var(--i) * 70ms); }
+  @keyframes letter { to { opacity: 1; transform: none; } }
+  .rule { width: 0; height: 3px; margin: 18px auto; background: linear-gradient(90deg, var(--red), var(--blue)); }
+  .on .rule { animation: rule 1.2s ease forwards 1s; }
+  @keyframes rule { to { width: min(520px, 70vw); } }
+  .disclaimer { position: absolute; bottom: calc(7vh + 14px); left: 0; right: 0; font-size: 13px; color: rgba(244,241,234,.4); letter-spacing: .08em; }
+
+  /* Partikel */
+  .dust { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
+
+  /* Steuerung */
+  .controls { position: fixed; z-index: 30; left: 16px; right: 16px; bottom: calc(7vh - 44px); display: flex; align-items: center; gap: 12px; }
+  .controls button {
+    background: rgba(255,255,255,.08); color: var(--ink); border: 1px solid rgba(255,255,255,.2);
+    border-radius: 999px; height: 34px; padding: 0 14px; font: 600 14px 'Rajdhani', sans-serif; letter-spacing: .1em; cursor: pointer;
+  }
+  .controls button:hover { background: rgba(255,255,255,.16); }
+  .progress { flex: 1; height: 3px; background: rgba(255,255,255,.15); border-radius: 3px; overflow: hidden; }
+  .progress i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--red), var(--blue)); }
+
+  @media (max-width: 600px) {
+    .bars::before, .bars::after { height: 10vh; }
+    .controls { bottom: calc(10vh - 44px); }
+    .disclaimer { bottom: calc(10vh + 10px); }
+    .skyline, .waves { bottom: 10vh; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .01ms !important; animation-delay: 0s !important; animation-iteration-count: 1 !important; }
+    .on .reel { animation: none; flex-wrap: wrap; justify-content: center; }
+  }
+</style>
+</head>
+<body>
+<div class="stage bars" id="stage">
+  <canvas class="dust" id="dust"></canvas>
+
+  <!-- 1 -->
+  <section class="scene" data-dur="4200">
+    <svg class="skyline" viewBox="0 0 1200 300" preserveAspectRatio="none" aria-hidden="true">
+      <path d="M0 300 V230 H80 V190 H120 V230 H190 V150 H230 V120 H250 V150 H290 V230 H360 V200 H420 V90 L440 60 L460 90 V230 H540 V180 H600 V230 H660 V140 H700 V230 H760 V170 H800 V110 H830 V170 H870 V230 H950 V190 H1010 V230 H1080 V160 H1120 V230 H1200 V300"/>
+    </svg>
+    <p class="kicker rise">London · Kingston upon Thames · 1996</p>
+    <h1 class="mid rise d1">Ein Junge mit einem Traum.</h1>
+  </section>
+
+  <!-- 2 -->
+  <section class="scene" data-dur="4400">
+    <div class="spot"></div>
+    <svg class="dancer" viewBox="0 0 64 100" aria-hidden="true">
+      <circle cx="32" cy="12" r="8"/>
+      <path d="M30 22 h4 l14 -14 4 4 -14 18 v24 l14 30 -6 3 -14 -26 -14 26 -6 -3 14 -30 v-24 L12 12 l4 -4 z"/>
+    </svg>
+    <p class="year rise">2008</p>
+    <h2 class="mid rise d1">Billy Elliot – das Musical</h2>
+    <p class="sub rise d2">Mit zwölf tanzt er sich im Londoner West End in die Titelrolle.</p>
+  </section>
+
+  <!-- 3 -->
+  <section class="scene" data-dur="4200">
+    <svg class="waves" viewBox="0 0 1200 300" preserveAspectRatio="none" aria-hidden="true">
+      <path class="w2" d="M0 120 Q150 60 300 120 T600 120 T900 120 T1200 120 V300 H0Z"/>
+      <path class="w1" d="M0 160 Q150 100 300 160 T600 160 T900 160 T1200 160 V300 H0Z"/>
+    </svg>
+    <p class="year rise">2012</p>
+    <h2 class="mid rise d1">The Impossible</h2>
+    <p class="sub rise d2">Sein Filmdebüt – und die Welt horcht auf.</p>
+  </section>
+
+  <!-- 4 -->
+  <section class="scene" data-dur="4600">
+    <svg class="web" viewBox="0 0 1000 600" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      <line x1="500" y1="300" x2="0" y2="0"/><line x1="500" y1="300" x2="500" y2="0"/>
+      <line x1="500" y1="300" x2="1000" y2="0"/><line x1="500" y1="300" x2="1000" y2="300"/>
+      <line x1="500" y1="300" x2="1000" y2="600"/><line x1="500" y1="300" x2="500" y2="600"/>
+      <line x1="500" y1="300" x2="0" y2="600"/><line x1="500" y1="300" x2="0" y2="300"/>
+      <polygon points="500,180 585,215 620,300 585,385 500,420 415,385 380,300 415,215"/>
+      <polygon points="500,60 670,130 740,300 670,470 500,540 330,470 260,300 330,130"/>
+    </svg>
+    <div class="flash"></div>
+    <p class="year rise">2016</p>
+    <h2 class="big zoom"><span class="hero-word">Der Netzschwinger</span></h2>
+    <p class="sub rise d2">Sein erster Auftritt als Spider-Man – und eine Generation hat ihren Helden.</p>
+  </section>
+
+  <!-- 5 -->
+  <section class="scene" data-dur="7000">
+    <p class="kicker rise">Ein Jahrzehnt voller Rollen</p>
+    <div class="reel">
+      <div class="card" style="--a:#7a1218"><b>Homecoming</b><span>2017</span></div>
+      <div class="card" style="--a:#1d3a8a"><b>Far From Home</b><span>2019</span></div>
+      <div class="card" style="--a:#3a3a3a"><b>Cherry</b><span>2021</span></div>
+      <div class="card" style="--a:#5c1a6b"><b>No Way Home</b><span>2021</span></div>
+      <div class="card" style="--a:#8a5a12"><b>Uncharted</b><span>2022</span></div>
+      <div class="card" style="--a:#24434a"><b>The Crowded Room</b><span>2023</span></div>
+      <div class="card" style="--a:#6b1730"><b>Romeo &amp; Julia</b><span>2024 · West End</span></div>
+      <div class="card" style="--a:#123f73"><b>The Odyssey</b><span>2026</span></div>
+      <div class="card" style="--a:#8f141c"><b>Brand New Day</b><span>2026</span></div>
+    </div>
+  </section>
+
+  <!-- 6 -->
+  <section class="scene" data-dur="3800">
+    <div class="triad">
+      <span class="big rise">Tänzer.</span>
+      <span class="big rise d1">Schauspieler.</span>
+      <span class="big rise d2">Held.</span>
+    </div>
+  </section>
+
+  <!-- 7 -->
+  <section class="scene" data-dur="6000">
+    <p class="kicker rise">Bühne frei für</p>
+    <h1 class="final-name" id="finalName">TOM HOLLAND</h1>
+    <div class="rule"></div>
+    <p class="sub rise d3">Bald wieder auf der großen Leinwand.</p>
+    <p class="disclaimer">Inoffizielles Fan-Tribute · nicht mit Tom Holland, Sony oder Marvel verbunden</p>
+  </section>
+</div>
+
+<div class="controls">
+  <button id="playBtn" aria-label="Pause">❚❚</button>
+  <div class="progress"><i id="bar"></i></div>
+  <button id="replayBtn">NOCHMAL</button>
+</div>
+
+<script>
+  // Buchstaben des Finales einzeln animieren
+  const fn = document.getElementById('finalName');
+  fn.innerHTML = [...fn.textContent].map((ch, i) =>
+    ch === ' ' ? ' ' : `<span class="t" style="--i:${i}">${ch}</span>`).join('');
+
+  const scenes = [...document.querySelectorAll('.scene')];
+  const durs = scenes.map(s => +s.dataset.dur);
+  const total = durs.reduce((a, b) => a + b, 0);
+  const bar = document.getElementById('bar');
+  const playBtn = document.getElementById('playBtn');
+
+  let elapsed = 0, last = performance.now(), playing = true, current = -1;
+
+  function show(i) {
+    if (i === current) return;
+    scenes.forEach((s, j) => s.classList.toggle('on', j === i));
+    current = i;
+  }
+  function sceneAt(t) {
+    let acc = 0;
+    for (let i = 0; i < durs.length; i++) { acc += durs[i]; if (t < acc) return i; }
+    return durs.length - 1;
+  }
+  function restart() {
+    elapsed = 0; current = -1;
+    scenes.forEach(s => s.classList.remove('on'));
+    void document.body.offsetWidth; // Animationen zurücksetzen
+    setPlaying(true);
+  }
+  function setPlaying(p) {
+    playing = p;
+    playBtn.textContent = p ? '❚❚' : '▶';
+    playBtn.setAttribute('aria-label', p ? 'Pause' : 'Abspielen');
+    document.querySelectorAll('.scene *').forEach(el => el.style.animationPlayState = p ? 'running' : 'paused');
+  }
+
+  function tick(now) {
+    const dt = now - last; last = now;
+    if (playing) {
+      elapsed = Math.min(elapsed + dt, total);
+      show(sceneAt(elapsed));
+      if (elapsed >= total) setPlaying(false);
+    }
+    bar.style.width = (elapsed / total * 100) + '%';
+    drawDust(dt);
+    requestAnimationFrame(tick);
+  }
+
+  playBtn.onclick = () => elapsed >= total ? restart() : setPlaying(!playing);
+  document.getElementById('replayBtn').onclick = restart;
+  document.addEventListener('keydown', e => { if (e.code === 'Space') { e.preventDefault(); playBtn.click(); } });
+
+  // Schwebende Staub-/Lichtpartikel im Hintergrund
+  const cv = document.getElementById('dust'), cx = cv.getContext('2d');
+  let W, H, motes = [];
+  function resize() {
+    W = cv.width = innerWidth * devicePixelRatio; H = cv.height = innerHeight * devicePixelRatio;
+    motes = Array.from({ length: Math.round(innerWidth / 14) }, () => ({
+      x: Math.random() * W, y: Math.random() * H, r: (Math.random() * 1.6 + .4) * devicePixelRatio,
+      vy: -(Math.random() * .02 + .008) * devicePixelRatio, hue: Math.random() < .5 ? '227,36,43' : '47,107,255',
+      a: Math.random() * .5 + .15
+    }));
+  }
+  function drawDust(dt) {
+    cx.clearRect(0, 0, W, H);
+    for (const m of motes) {
+      if (playing) { m.y += m.vy * dt; if (m.y < -10) { m.y = H + 10; m.x = Math.random() * W; } }
+      cx.fillStyle = `rgba(${m.hue},${m.a})`;
+      cx.beginPath(); cx.arc(m.x, m.y, m.r, 0, Math.PI * 2); cx.fill();
+    }
+  }
+  addEventListener('resize', resize);
+  resize();
+  requestAnimationFrame(t => { last = t; tick(t); });
+</script>
+</body>
+</html>
