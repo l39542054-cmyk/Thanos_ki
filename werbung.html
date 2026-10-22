@@ -188,11 +188,6 @@
     .net { max-height: 200px; }
   }
 
-  @media (prefers-reduced-motion: reduce) {
-    .scene, .scene.on { transition: none; }
-    .scene.on .a, .scene.on .bar i, .scene.on .timeline::before, .scene.on .slot .w,
-    .scene.on .net .flow, .scene.on .net .back, .scene.on .net circle { animation: none; }
-  }
 </style>
 </head>
 <body>
@@ -358,7 +353,6 @@
 <script>
 (() => {
   const $ = s => document.querySelector(s);
-  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const stage = $('#stage');
   const scenes = [...document.querySelectorAll('.scene')];
 
@@ -394,16 +388,15 @@
       pts.length = n; pulses = [];
       pts.forEach((p, i) => { p.a = i / n * Math.PI * 2; p.x = Math.min(p.x, W); p.y = Math.min(p.y, H); });
     }
-    function setMode(i) { target = MODES[i] || MODES[0]; if (reduce) { ring = target[0]; dim = target[1]; } }
+    function setMode(i) { target = MODES[i] || MODES[0]; }
     function draw(dt) {
-      const k = reduce ? 0 : 1;
-      t += dt * k;
+      t += dt;
       ring += (target[0] - ring) * Math.min(1, dt * .0018);
       dim += (target[1] - dim) * Math.min(1, dt * .003);
       const cx = W / 2, cy = H * .44, R = Math.min(W, H) * .34, e = ring * ring * (3 - 2 * ring);
       ctx.clearRect(0, 0, W, H);
       for (const p of pts) {
-        p.x += p.vx * dt * .06 * k; p.y += p.vy * dt * .06 * k;
+        p.x += p.vx * dt * .06; p.y += p.vy * dt * .06;
         if (p.x < -20) p.x = W + 20; else if (p.x > W + 20) p.x = -20;
         if (p.y < -20) p.y = H + 20; else if (p.y > H + 20) p.y = -20;
         const a = p.a + t * .00006, rr = R * (.82 + p.j * .36);
@@ -417,7 +410,7 @@
         if (d2 < L2) {
           ctx.strokeStyle = `rgba(167,123,255,${((1 - Math.sqrt(d2) / L) * .32 * dim).toFixed(3)})`;
           ctx.beginPath(); ctx.moveTo(a.dx, a.dy); ctx.lineTo(b.dx, b.dy); ctx.stroke();
-          if (!reduce && spawn <= 0 && Math.random() < .02) { pulses.push({ a: i, b: j, t: 0 }); spawn = 70; }
+          if (spawn <= 0 && Math.random() < .02) { pulses.push({ a: i, b: j, t: 0 }); spawn = 70; }
         }
       }
       spawn -= dt;
