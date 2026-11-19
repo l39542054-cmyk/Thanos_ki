@@ -2,26 +2,28 @@
 <html lang="de">
 <head>
 <meta charset="utf-8">
-<title>ASICS GEL Spot</title>
+<title>ASICS GEL Spot v2</title>
 <style>html,body{margin:0;background:#000;overflow:hidden}canvas{display:block}</style>
 </head>
 <body>
 <canvas id="c"></canvas>
 <script>
 // =====================================================================
-//  ASICS GEL – 30s Werbespot (Spec-Spot). Deterministisch: render(t)
+//  ASICS GEL – 30s Spot v2  ·  120 BPM  ·  deterministisch: render(t)
 // =====================================================================
-const W = 1920, H = 1080;
+const W = 1920, H = 1080, BEAT = 0.5;
 const cv = document.getElementById('c'); cv.width = W; cv.height = H;
 const ctx = cv.getContext('2d');
 window.cv = cv;
-
 function mk(w = W, h = H) { const c = document.createElement('canvas'); c.width = w; c.height = h; return [c, c.getContext('2d')]; }
-const [shoeC, sctx] = mk();
-const [tmpC, tctx] = mk();
+const [fxA, fa] = mk(), [fxB, fb] = mk();
 
-const C = { cyan: '#3fd6ff', orange: '#ff7a2f', white: '#f4f6fa' };
-const FONT = '"Inter Display", "Inter", sans-serif';
+const PAL = {
+  bone: '#F2ECE4', cream: '#E9E0D2', clay: '#B9A08B', mocha: '#5A4233', espresso: '#2B2019',
+  blush: '#E4C1B5', ink: '#13100E', rose: '#B87562'
+};
+const SANS = '"Inter Display", "Inter", sans-serif';
+const SERIF = '"Bitstream Charter", "Caladea", serif';
 const MONO = '"JetBrains Mono", monospace';
 
 // ---------- helpers ----------
@@ -32,664 +34,545 @@ const eOut = x => 1 - Math.pow(1 - x, 3);
 const eIn = x => x * x * x;
 const eIO = x => x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
 const eExpo = x => x >= 1 ? 1 : 1 - Math.pow(2, -10 * x);
-const eBack = x => { const c1 = 1.4, c3 = c1 + 1; return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2); };
-function rng(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
-const inOut = (t, a, b, c, d) => seg(t, a, b) * (1 - seg(t, c, d));
+const eBack = x => { const c1 = 1.6, c3 = c1 + 1; return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2); };
 const hitEnv = (t, h, k) => t >= h ? Math.exp(-(t - h) * k) : 0;
+function rng(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const beatPh = (t, t0) => ((t - t0) % BEAT + BEAT) % BEAT;     // seconds since last beat
+const fillAll = c => { ctx.fillStyle = c; ctx.fillRect(-200, -200, W + 400, H + 400); };
 
+function setFont(o) {
+  ctx.font = `${o.italic ? 'italic ' : ''}${o.w || 400} ${o.size || 60}px ${o.fam || SANS}`;
+  ctx.letterSpacing = (o.ls || 0) + 'px';
+}
+function tw(s, o) { ctx.save(); setFont(o); const w = ctx.measureText(s).width; ctx.restore(); return w; }
 function txt(s, x, y, o = {}) {
   const a = o.a ?? 1; if (a <= 0.001) return;
   ctx.save();
-  ctx.font = `${o.italic ? 'italic ' : ''}${o.w || 400} ${o.size || 60}px ${o.fam || FONT}`;
-  ctx.letterSpacing = (o.ls || 0) + 'px';
+  setFont(o);
   ctx.textAlign = o.align || 'center'; ctx.textBaseline = o.base || 'middle';
   ctx.globalAlpha = clamp(a);
+  if (o.comp) ctx.globalCompositeOperation = o.comp;
   if (o.blur && o.blur > 0.2) ctx.filter = `blur(${o.blur}px)`;
-  if (o.align === undefined || o.align === 'center') x += (o.ls || 0) / 2;
+  if ((o.align || 'center') === 'center') x += (o.ls || 0) / 2;
   ctx.translate(x, y);
   if (o.sc && o.sc !== 1) ctx.scale(o.sc, o.sc);
-  if (o.glow) { ctx.shadowColor = o.glow; ctx.shadowBlur = o.glowR || 30; }
   if (o.stroke) { ctx.strokeStyle = o.stroke; ctx.lineWidth = o.lw || 2; ctx.strokeText(s, 0, 0); }
-  if (o.fill !== null) { ctx.fillStyle = o.fill || C.white; ctx.fillText(s, 0, 0); }
+  if (o.fill !== null) { ctx.fillStyle = o.fill || PAL.ink; ctx.fillText(s, 0, 0); }
   ctx.restore();
 }
-
-// ---------- shoe geometry (local coords: heel x=0, toe x=1000, ground y=0, up = negative) ----------
-const P = {};
-P.outsole = new Path2D('M35,-30 Q25,0 75,0 L640,0 C780,0 900,-20 975,-62 C990,-70 992,-82 982,-88 C900,-48 780,-22 640,-20 L80,-20 Q45,-20 35,-30 Z');
-P.midsole = new Path2D('M35,-30 Q45,-20 80,-20 L640,-20 C780,-22 900,-48 982,-88 C994,-96 986,-110 965,-112 C850,-106 700,-100 560,-112 C420,-124 250,-136 120,-142 C60,-144 26,-136 20,-112 C16,-80 20,-50 35,-30 Z');
-P.upper = new Path2D('M20,-112 C2,-170 10,-255 42,-300 Q54,-322 78,-318 C130,-302 182,-262 240,-258 C282,-256 300,-292 314,-330 Q324,-348 346,-340 C362,-322 384,-302 424,-287 C560,-240 700,-200 820,-170 C925,-146 985,-128 965,-112 C850,-106 700,-100 560,-112 C420,-124 250,-136 120,-142 C60,-144 26,-136 20,-112 Z');
-P.toe = new Path2D('M770,-260 C790,-195 822,-142 872,-104 L1010,-104 L1010,-260 Z');
-P.toeEdge = new Path2D('M762,-192 C790,-160 822,-132 872,-112');
-P.heel = new Path2D('M-20,-100 L190,-128 C160,-170 128,-232 112,-330 L-20,-340 Z');
-P.heelEdge = new Path2D('M178,-136 C150,-176 124,-236 110,-310');
-P.accent = new Path2D('M92,-238 C230,-206 372,-160 540,-118 C372,-146 226,-178 96,-206 Z');
-P.accentLine = new Path2D('M120,-262 C250,-232 390,-186 560,-132');
-P.collar = new Path2D('M60,-318 C130,-302 182,-262 240,-258 C282,-256 300,-292 316,-332');
-P.tongue = new Path2D('M296,-298 C303,-322 318,-348 346,-340 C362,-322 376,-310 396,-296 C360,-288 320,-288 296,-298 Z');
-P.lacePanel = new Path2D('M410,-300 C560,-252 700,-212 830,-180 L812,-158 C690,-186 552,-224 404,-268 Z');
-P.tab = new Path2D('M44,-322 Q20,-322 12,-296 L4,-258 Q16,-256 22,-266 L36,-302 Q42,-312 54,-314 Z');
-P.groove = new Path2D('M40,-72 C300,-70 600,-58 935,-80');
-P.lowShade = new Path2D('M0,-72 C300,-70 600,-58 935,-80 L1000,-80 L1000,10 L0,10 Z');
-P.sculpt = new Path2D('M250,-135 C380,-112 520,-100 640,-96 C560,-80 420,-84 300,-100 C270,-108 255,-120 250,-135 Z');
-P.sculptEdge = new Path2D('M250,-135 C270,-108 300,-100 300,-100 C420,-84 560,-80 640,-96');
-const HULL = [[40, -5], [75, 0], [640, 0], [975, -62], [985, -95], [20, -112], [10, -250], [60, -320], [346, -340]];
-const GEL = { x: 137, y: -78 };   // centre of heel gel window
-
-// lace line bezier
-function bez(p0, p1, p2, p3, t) { const u = 1 - t; return u * u * u * p0 + 3 * u * u * t * p1 + 3 * u * t * t * p2 + t * t * t * p3; }
-const LACE = [];
-for (let i = 0; i < 6; i++) {
-  const tt = 0.08 + i * 0.145;
-  const x = bez(424, 560, 700, 820, tt), y = bez(-287, -240, -200, -170, tt);
-  const dx = bez(424, 560, 700, 820, tt + .01) - x, dy = bez(-287, -240, -200, -170, tt + .01) - y;
-  const l = Math.hypot(dx, dy); LACE.push({ x, y, nx: -dy / l, ny: dx / l });
-}
-
-// mesh pattern
-const [meshC, mctx] = mk(14, 14);
-mctx.fillStyle = 'rgba(255,255,255,0.10)';
-mctx.beginPath(); mctx.arc(3.5, 3.5, 1.6, 0, 7); mctx.arc(10.5, 10.5, 1.6, 0, 7); mctx.fill();
-const meshPat = ctx.createPattern(meshC, 'repeat');
-
-function drawShoe(g, o) {
-  const gel = o.gel ?? 0.7;
-  // upper
-  let gr = g.createLinearGradient(0, -345, 0, -105);
-  gr.addColorStop(0, '#3a6bf0'); gr.addColorStop(0.55, '#1c3fa6'); gr.addColorStop(1, '#0c1d55');
-  g.fillStyle = gr; g.fill(P.upper);
-  g.save(); g.clip(P.upper);
-  g.fillStyle = meshPat; g.fillRect(-20, -360, 1050, 280);
-  g.fillStyle = '#0b1a4a'; g.fill(P.heel);
-  g.fillStyle = 'rgba(160,190,255,0.13)'; g.fill(P.toe);
-  let ag = g.createLinearGradient(90, 0, 560, 0);
-  ag.addColorStop(0, '#ff9a4a'); ag.addColorStop(1, '#ff5a1f');
-  g.fillStyle = ag; g.fill(P.accent);
-  g.strokeStyle = 'rgba(63,214,255,0.85)'; g.lineWidth = 3; g.stroke(P.accentLine);
-  g.setLineDash([7, 7]); g.strokeStyle = 'rgba(255,255,255,0.28)'; g.lineWidth = 1.6;
-  g.stroke(P.toeEdge); g.stroke(P.heelEdge); g.setLineDash([]);
-  g.strokeStyle = 'rgba(0,0,0,0.5)'; g.lineWidth = 18; g.stroke(P.collar);
-  g.fillStyle = 'rgba(0,0,0,0.22)'; g.fill(P.lacePanel);
-  g.restore();
-  // tongue
-  let tg = g.createLinearGradient(0, -345, 0, -290); tg.addColorStop(0, '#5a82f5'); tg.addColorStop(1, '#2546b0');
-  g.fillStyle = tg; g.fill(P.tongue);
-  // collar rim
-  g.strokeStyle = 'rgba(120,160,255,0.55)'; g.lineWidth = 3; g.stroke(P.collar);
-  // eyelets + laces
-  for (let i = 0; i < LACE.length; i++) {
-    const p = LACE[i];
-    const ex = p.x + p.nx * 30, ey = p.y + p.ny * 30;
-    g.fillStyle = '#081028';
-    g.beginPath(); g.arc(ex, ey, 6.5, 0, 7); g.fill();
-    g.strokeStyle = 'rgba(255,255,255,0.35)'; g.lineWidth = 1.5; g.stroke();
-    g.lineCap = 'round';
-    g.strokeStyle = 'rgba(0,0,20,0.35)'; g.lineWidth = 11;
-    g.beginPath(); g.moveTo(ex - 2, ey + 3); g.lineTo(p.x + p.nx * 4 + 14, p.y + p.ny * 4 + 2); g.stroke();
-    g.strokeStyle = '#eef1f7'; g.lineWidth = 9;
-    g.beginPath(); g.moveTo(ex - 2, ey); g.lineTo(p.x + p.nx * 4 + 14, p.y + p.ny * 4 - 1); g.stroke();
-  }
-  g.lineCap = 'butt';
-  // heel pull tab
-  g.fillStyle = C.orange; g.fill(P.tab);
-  // midsole
-  let mg = g.createLinearGradient(0, -145, 0, -20);
-  mg.addColorStop(0, '#ffffff'); mg.addColorStop(1, '#c4cad8');
-  g.fillStyle = mg; g.fill(P.midsole);
-  g.save(); g.clip(P.midsole);
-  g.fillStyle = 'rgba(10,25,70,0.10)'; g.fill(P.lowShade);
-  g.strokeStyle = 'rgba(10,25,70,0.22)'; g.lineWidth = 3; g.stroke(P.groove);
-  g.translate(0, -3); g.strokeStyle = 'rgba(255,255,255,0.9)'; g.lineWidth = 1.5; g.stroke(P.groove);
-  g.restore();
-  g.save(); g.clip(P.midsole);
-  g.fillStyle = 'rgba(10,25,70,0.08)'; g.fill(P.sculpt);
-  g.strokeStyle = 'rgba(10,25,70,0.16)'; g.lineWidth = 2; g.stroke(P.sculptEdge);
-  let hb = g.createLinearGradient(0, 0, 120, 0); hb.addColorStop(0, 'rgba(10,25,70,0.22)'); hb.addColorStop(1, 'rgba(10,25,70,0)');
-  g.fillStyle = hb; g.fillRect(0, -160, 120, 160);
-  g.restore();
-  // gel windows
-  gelWindow(g, 64, -103, 146, 50, 22, gel, true);
-  gelWindow(g, 690, -82, 92, 34, 16, gel * 0.8, false);
-  // outsole
-  g.fillStyle = '#16171d'; g.fill(P.outsole);
-  g.save(); g.clip(P.outsole);
-  g.strokeStyle = 'rgba(255,255,255,0.07)'; g.lineWidth = 3;
-  for (let x = 90; x < 900; x += 24) { g.beginPath(); g.moveTo(x, 2); g.lineTo(x + 6, -10); g.stroke(); }
-  g.fillStyle = C.orange; g.fillRect(30, -24, 120, 5);
-  g.restore();
-  // rim highlights
-  g.strokeStyle = 'rgba(170,215,255,0.35)'; g.lineWidth = 2; g.stroke(P.upper);
-  g.strokeStyle = 'rgba(255,255,255,0.6)'; g.lineWidth = 1.2; g.stroke(P.midsole);
-}
-
-function gelWindow(g, x, y, w, h, r, I, label) {
-  g.save();
-  g.beginPath(); g.roundRect(x, y, w, h, r);
-  g.fillStyle = '#0a2a66'; g.fill();
-  g.clip();
-  const lg = g.createLinearGradient(x, 0, x + w, 0);
-  lg.addColorStop(0, `rgba(20,120,255,${0.65 + 0.35 * clamp(I)})`);
-  lg.addColorStop(0.5, `rgba(110,235,255,${0.75 + 0.25 * clamp(I)})`);
-  lg.addColorStop(1, `rgba(20,140,255,${0.65 + 0.35 * clamp(I)})`);
-  g.fillStyle = lg; g.fillRect(x, y, w, h);
-  // inner bubbles
-  g.fillStyle = `rgba(255,255,255,${0.18 + 0.2 * clamp(I)})`;
-  const rr = rng(label ? 3 : 9);
-  for (let i = 0; i < 9; i++) { g.beginPath(); g.arc(x + rr() * w, y + rr() * h, 2 + rr() * 5, 0, 7); g.fill(); }
-  // gloss
-  const gg = g.createLinearGradient(0, y, 0, y + h);
-  gg.addColorStop(0, 'rgba(255,255,255,0.55)'); gg.addColorStop(0.35, 'rgba(255,255,255,0)'); gg.addColorStop(1, 'rgba(0,30,90,0.35)');
-  g.fillStyle = gg; g.fillRect(x, y, w, h);
-  if (label) {
-    g.font = `italic 900 30px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.letterSpacing = '2px';
-    g.fillStyle = 'rgba(255,255,255,0.96)'; g.fillText('GEL', x + w / 2 + 1, y + h / 2 + 1);
-    g.letterSpacing = '0px';
-  }
-  g.restore();
-  g.save(); g.beginPath(); g.roundRect(x, y, w, h, r);
-  g.strokeStyle = 'rgba(0,30,80,0.5)'; g.lineWidth = 2; g.stroke(); g.restore();
-}
-
-// local point P -> screen Q, scale s, rotation deg
-function frame(px, py, qx, qy, s, rot = 0) {
-  return new DOMMatrix().translate(qx, qy).rotate(rot).scale(s).translate(-px, -py);
-}
-const tp = (m, x, y) => m.transformPoint(new DOMPoint(x, y));
-
-function buildShoe(m, o) {
-  sctx.setTransform(1, 0, 0, 1, 0, 0); sctx.clearRect(0, 0, W, H);
-  sctx.setTransform(m);
-  drawShoe(sctx, o);
-  sctx.globalCompositeOperation = 'source-atop';
-  // studio light: top bright, bottom dark, key from right
-  let v = sctx.createLinearGradient(0, -350, 0, 0);
-  v.addColorStop(0, 'rgba(255,255,255,0.10)'); v.addColorStop(0.5, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,10,0.28)');
-  sctx.fillStyle = v; sctx.fillRect(-60, -420, 1120, 440);
-  let hz = sctx.createLinearGradient(0, 0, 1000, 0);
-  hz.addColorStop(0, 'rgba(0,0,15,0.30)'); hz.addColorStop(0.6, 'rgba(0,0,0,0)'); hz.addColorStop(1, 'rgba(255,240,230,0.08)');
-  sctx.fillStyle = hz; sctx.fillRect(-60, -420, 1120, 440);
-  if (o.sweep !== undefined && o.sweep > 0 && o.sweep < 1) {
-    const cx = lerp(-400, 1400, o.sweep);
-    const sw = sctx.createLinearGradient(cx - 160, -380, cx + 160, 20);
-    sw.addColorStop(0, 'rgba(255,255,255,0)'); sw.addColorStop(0.5, 'rgba(255,255,255,0.55)'); sw.addColorStop(1, 'rgba(255,255,255,0)');
-    sctx.fillStyle = sw; sctx.fillRect(-60, -420, 1120, 440);
-  }
-  sctx.globalCompositeOperation = 'source-over';
-  sctx.setTransform(1, 0, 0, 1, 0, 0);
-}
-
-// draws prepared shoe onto main ctx with shadow / reflection / gel glow
-function placeShoe(m, o) {
-  buildShoe(m, o);
-  const s = Math.hypot(m.a, m.b);
-  const gpt = tp(m, 500, 0);
-  if (o.shadow) {
-    ctx.save();
-    const rx = 560 * s, ry = 46 * s;
-    ctx.translate(gpt.x, gpt.y + (o.lift || 0)); ctx.scale(1, ry / rx);
-    const sg = ctx.createRadialGradient(0, 0, 0, 0, 0, rx);
-    sg.addColorStop(0, `rgba(0,0,0,${0.75 * o.shadow})`); sg.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = sg; ctx.beginPath(); ctx.arc(0, 0, rx, 0, 7); ctx.fill();
-    ctx.restore();
-  }
-  if (o.refl) {
-    const gy = o.reflY ?? gpt.y;
-    tctx.setTransform(1, 0, 0, 1, 0, 0); tctx.clearRect(0, 0, W, H);
-    tctx.save(); tctx.translate(0, 2 * gy); tctx.scale(1, -1); tctx.drawImage(shoeC, 0, 0); tctx.restore();
-    tctx.globalCompositeOperation = 'destination-in';
-    const rg = tctx.createLinearGradient(0, gy, 0, gy + 260 * s);
-    rg.addColorStop(0, 'rgba(0,0,0,1)'); rg.addColorStop(1, 'rgba(0,0,0,0)');
-    tctx.fillStyle = rg; tctx.fillRect(0, gy, W, H - gy);
-    tctx.globalCompositeOperation = 'source-over';
-    ctx.save(); ctx.globalAlpha = o.refl; ctx.drawImage(tmpC, 0, 0); ctx.restore();
-  }
-  if (o.trail) {
-    for (let i = o.trail.n; i >= 1; i--) {
-      ctx.save(); ctx.globalAlpha = 0.18 * (1 - i / (o.trail.n + 1));
-      ctx.drawImage(shoeC, -o.trail.dx * i, 0); ctx.restore();
-    }
-  }
-  ctx.save(); ctx.globalAlpha = o.alpha ?? 1; ctx.drawImage(shoeC, 0, 0); ctx.restore();
-  // gel glow
-  const gc = tp(m, GEL.x, GEL.y);
-  const I = o.gel ?? 0.7;
-  ctx.save(); ctx.globalCompositeOperation = 'lighter';
-  const R = 190 * s * (0.6 + 0.6 * I);
-  const gg = ctx.createRadialGradient(gc.x, gc.y, 0, gc.x, gc.y, R);
-  gg.addColorStop(0, `rgba(80,210,255,${0.32 * I})`); gg.addColorStop(1, 'rgba(0,80,255,0)');
-  ctx.fillStyle = gg; ctx.fillRect(gc.x - R, gc.y - R, 2 * R, 2 * R);
+// mask slide-up reveal
+function reveal(s, x, y, p, o = {}) {
+  if (p <= 0) return;
+  const sz = o.size || 100;
+  ctx.save(); ctx.beginPath(); ctx.rect(-50, y - sz * 0.82, W + 100, sz * 1.18); ctx.clip();
+  txt(s, x, y + (1 - eOut(clamp(p))) * sz * 1.15, o);
   ctx.restore();
-  return { gc, s };
+}
+function typeOn(s, p) { return s.slice(0, Math.floor(clamp(p) * s.length + 0.0001)); }
+
+// ---------- images ----------
+const IMG = {};
+function load(n, src) { return new Promise((res, rej) => { const i = new Image(); i.onload = () => { IMG[n] = i; res(); }; i.onerror = rej; i.src = src; }); }
+
+// draw cut-out shoe centred at (x,y)
+function shoe(x, y, s, rot = 0, o = {}) {
+  const img = IMG.cut;
+  ctx.save();
+  ctx.translate(x, y); ctx.rotate(rot * Math.PI / 180);
+  ctx.scale(s * (o.flip ? -1 : 1), s);
+  if (o.filter) ctx.filter = o.filter;
+  ctx.globalAlpha = o.a ?? 1;
+  if (o.comp) ctx.globalCompositeOperation = o.comp;
+  ctx.drawImage(img, -img.width / 2, -img.height / 2);
+  ctx.restore();
+}
+// soft contact shadow on the floor (shoe-shaped)
+function shadow(x, floorY, s, a = 0.4, spread = 1) {
+  const img = IMG.cut;
+  ctx.save();
+  ctx.translate(x, floorY); ctx.scale(s * 1.08 * spread, s * 0.13);
+  ctx.filter = `brightness(0) blur(${10 * spread}px)`;
+  ctx.globalAlpha = a;
+  ctx.drawImage(img, -img.width / 2, -img.height / 2);
+  ctx.restore();
+  ctx.save();
+  ctx.translate(x, floorY); ctx.scale(1, 0.12);
+  const r = 360 * s * spread;
+  const g = ctx.createRadialGradient(0, 0, 0, 0, 0, r);
+  g.addColorStop(0, `rgba(30,18,10,${a * 0.6})`); g.addColorStop(1, 'rgba(30,18,10,0)');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, r, 0, 7); ctx.fill();
+  ctx.restore();
+}
+// shoe point (in cut-out pixel coords) -> screen
+function shoePt(px, py, x, y, s, rot = 0, flip = false) {
+  const img = IMG.cut;
+  let dx = (px - img.width / 2) * s * (flip ? -1 : 1), dy = (py - img.height / 2) * s;
+  const r = rot * Math.PI / 180;
+  return { x: x + dx * Math.cos(r) - dy * Math.sin(r), y: y + dx * Math.sin(r) + dy * Math.cos(r) };
+}
+// macro crop of the big photo filling a rect
+function macro(cx, cy, cw, t, rect = [0, 0, W, H], drift = [0, 0], filter) {
+  const img = IMG.x4;
+  const [rx, ry, rw, rh] = rect;
+  const sc = rw / cw * (1 + 0.07 * t);
+  ctx.save(); ctx.beginPath(); ctx.rect(rx, ry, rw, rh); ctx.clip();
+  ctx.translate(rx + rw / 2, ry + rh / 2); ctx.scale(sc, sc);
+  ctx.filter = filter || 'contrast(1.12) saturate(0.85) brightness(0.95) sepia(0.12)';
+  ctx.drawImage(img, -(cx + drift[0] * t), -(cy + drift[1] * t));
+  ctx.restore();
+  // lens vignette / fake DOF
+  const v = ctx.createRadialGradient(rx + rw / 2, ry + rh / 2, rh * 0.3, rx + rw / 2, ry + rh / 2, rw * 0.62);
+  v.addColorStop(0, 'rgba(10,6,4,0)'); v.addColorStop(1, 'rgba(10,6,4,0.75)');
+  ctx.fillStyle = v; ctx.fillRect(rx, ry, rw, rh);
 }
 
-// ---------- shared visuals ----------
+// ---------- design elements ----------
+function marquee(s, y, size, speed, t, style) {
+  ctx.save(); setFont({ w: 900, size, ls: -size * 0.03 });
+  ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+  const w = ctx.measureText(s).width;
+  let x = -(((t * speed) % w) + w) % w;
+  for (; x < W + 10; x += w) {
+    if (style.stroke) { ctx.strokeStyle = style.stroke; ctx.lineWidth = style.lw || 2; ctx.strokeText(s, x, y); }
+    else { ctx.fillStyle = style.fill; ctx.fillText(s, x, y); }
+  }
+  ctx.restore();
+}
+function frameBorder(col, inset = 36) {
+  ctx.strokeStyle = col; ctx.lineWidth = 1.2;
+  ctx.strokeRect(inset, inset, W - 2 * inset, H - 2 * inset);
+}
+function corners(col, label = {}) {
+  const o = { fam: MONO, size: 17, ls: 5, fill: col, w: 500 };
+  if (label.tl) txt(label.tl, 66, 70, { ...o, align: 'left' });
+  if (label.tr) txt(label.tr, W - 66, 70, { ...o, align: 'right' });
+  if (label.bl) txt(label.bl, 66, H - 68, { ...o, align: 'left' });
+  if (label.br) txt(label.br, W - 66, H - 68, { ...o, align: 'right' });
+}
+function viewfinder(col, inset, top, bot) {
+  ctx.strokeStyle = col; ctx.lineWidth = 2; const L = 34;
+  const pts = [[inset, top, 1, 1], [W - inset, top, -1, 1], [inset, bot, 1, -1], [W - inset, bot, -1, -1]];
+  for (const [x, y, sx, sy] of pts) { ctx.beginPath(); ctx.moveTo(x + L * sx, y); ctx.lineTo(x, y); ctx.lineTo(x, y + L * sy); ctx.stroke(); }
+  ctx.beginPath(); ctx.moveTo(W / 2 - 14, (top + bot) / 2); ctx.lineTo(W / 2 + 14, (top + bot) / 2);
+  ctx.moveTo(W / 2, (top + bot) / 2 - 14); ctx.lineTo(W / 2, (top + bot) / 2 + 14); ctx.stroke();
+}
+function leak(t, I, seed = 1) {
+  if (I <= 0.002) return;
+  ctx.save(); ctx.globalCompositeOperation = 'screen';
+  const r = rng(seed);
+  for (let i = 0; i < 3; i++) {
+    const ph = r() * 6.28, sp = 0.3 + r() * 0.5;
+    const x = W * (0.5 + 0.55 * Math.sin(t * sp + ph)), y = H * (0.5 + 0.45 * Math.cos(t * sp * 0.7 + ph * 1.3));
+    const rad = 500 + 400 * r();
+    const col = [[255, 120, 40], [255, 70, 30], [255, 190, 110]][i];
+    const fl = 0.75 + 0.25 * Math.sin(t * 23 + i * 2) * Math.sin(t * 7.7 + i);
+    const g = ctx.createRadialGradient(x, y, 0, x, y, rad);
+    g.addColorStop(0, `rgba(${col},${0.55 * I * fl})`); g.addColorStop(1, `rgba(${col},0)`);
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  }
+  ctx.restore();
+}
+function ruler(y, col, t) {
+  ctx.fillStyle = col;
+  ctx.fillRect(120, y, W - 240, 1.2);
+  for (let i = 0, x = 120; x <= W - 120; x += 24, i++) {
+    const h = i % 10 === 0 ? 18 : i % 5 === 0 ? 11 : 6;
+    ctx.fillRect(x, y - h, 1.2, h);
+    if (i % 10 === 0) txt(String(i * 2).padStart(3, '0'), x + 6, y - 26, { fam: MONO, size: 13, ls: 2, fill: col, align: 'left' });
+  }
+}
+
+// ---------- frame FX ----------
+function rgbSplit(d) {
+  if (d < 0.6) return;
+  fa.globalCompositeOperation = 'copy'; fa.drawImage(cv, 0, 0);
+  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.filter = 'none';
+  ctx.globalCompositeOperation = 'copy'; ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+  ctx.globalCompositeOperation = 'lighter';
+  for (const [col, dx, dy] of [['#f00', -d, 0], ['#0f0', 0, 0], ['#00f', d, d * 0.3]]) {
+    fb.globalCompositeOperation = 'copy'; fb.drawImage(fxA, 0, 0);
+    fb.globalCompositeOperation = 'multiply'; fb.fillStyle = col; fb.fillRect(0, 0, W, H);
+    ctx.drawImage(fxB, dx, dy);
+  }
+  ctx.restore();
+}
+function glitch(amt, seed, n = 9) {
+  if (amt < 1) return;
+  fa.globalCompositeOperation = 'copy'; fa.drawImage(cv, 0, 0);
+  const r = rng(seed);
+  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
+  for (let i = 0; i < n; i++) {
+    const y = r() * H, h = 6 + r() * 90, dx = (r() - 0.5) * 2 * amt;
+    ctx.drawImage(fxA, 0, y, W, h, dx, y, W, h);
+  }
+  ctx.restore();
+}
+function invert() {
+  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.globalCompositeOperation = 'difference'; ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H); ctx.restore();
+}
+function flash(a, col = '255,250,240') { if (a > 0.003) { ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = `rgba(${col},${clamp(a)})`; ctx.fillRect(0, 0, W, H); ctx.restore(); } }
+
 const grainC = [];
 (function () {
   const r = rng(42);
-  for (let k = 0; k < 8; k++) {
-    const [c, g] = mk(640, 360); const id = g.createImageData(640, 360);
-    for (let i = 0; i < id.data.length; i += 4) { const v = 128 + (r() - 0.5) * 255; id.data[i] = id.data[i + 1] = id.data[i + 2] = v; id.data[i + 3] = 255; }
+  for (let k = 0; k < 10; k++) {
+    const [c, g] = mk(960, 540); const id = g.createImageData(960, 540);
+    for (let i = 0; i < id.data.length; i += 4) { const v = 128 + (r() + r() - 1) * 150; id.data[i] = id.data[i + 1] = id.data[i + 2] = v; id.data[i + 3] = 255; }
     g.putImageData(id, 0, 0); grainC.push(c);
   }
 })();
 
-function spotlightBG(cx, cy, col1, col2, r = 1100) {
-  const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
-  g.addColorStop(0, col1); g.addColorStop(1, col2);
-  ctx.fillStyle = g; ctx.fillRect(-100, -100, W + 200, H + 200);
-}
-
-function dust(t, seed, n, alpha, col = '200,225,255') {
-  const r = rng(seed);
-  ctx.save();
-  for (let i = 0; i < n; i++) {
-    const x0 = r() * W, y0 = r() * H, sp = 6 + r() * 18, ph = r() * 6.28, sz = 0.8 + r() * 2.2, tw = 0.4 + 0.6 * r();
-    const x = (x0 + Math.sin(t * 0.3 + ph) * 30 + t * sp * 0.6) % W;
-    const y = (y0 - t * sp + H * 4) % H;
-    ctx.globalAlpha = alpha * tw * (0.5 + 0.5 * Math.sin(t * 1.3 + ph));
-    ctx.fillStyle = `rgb(${col})`;
-    ctx.beginPath(); ctx.arc(x, y, sz, 0, 7); ctx.fill();
-  }
-  ctx.restore();
-}
-
-function floorPlane(gy, a = 1) {
-  const fg = ctx.createLinearGradient(0, gy, 0, H);
-  fg.addColorStop(0, `rgba(30,50,100,${0.22 * a})`); fg.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = fg; ctx.fillRect(-100, gy, W + 200, H - gy + 100);
-  const lg = ctx.createLinearGradient(0, 0, W, 0);
-  lg.addColorStop(0, 'rgba(120,170,255,0)'); lg.addColorStop(0.5, `rgba(140,190,255,${0.25 * a})`); lg.addColorStop(1, 'rgba(120,170,255,0)');
-  ctx.fillStyle = lg; ctx.fillRect(-100, gy, W + 200, 1.5);
-}
-
 // =====================================================================
-//  SCENE A  0 – 8 s   Morgendämmerung / "Die Stadt schläft noch." / "Du nicht."
+//  S1  0–6  Intro (Cinemascope)
 // =====================================================================
-const HY = H * 0.6, FOC = 700;
-const sky = (() => { const r = rng(11), b = []; let x = -40; while (x < W + 40) { const w = 40 + r() * 120; const h = 30 + Math.pow(r(), 2) * 240 * (1 - Math.abs(x - W / 2) / W * 0.9); const win = []; const nw = Math.floor(r() * 4); for (let k = 0; k < nw; k++) win.push([x + 8 + r() * (w - 16), HY - 10 - r() * (h - 20)]); b.push({ x, w, h, win }); x += w + r() * 6; } return b; })();
-const streaks = (() => { const r = rng(5), a = []; for (let i = 0; i < 260; i++) a.push({ ang: r() * Math.PI * 2, rad: 1.6 + r() * 7, z0: r() * 60, warm: r() < 0.55 }); return a; })();
-const roadD = t => t < 5 ? 0 : 2 * (t - 5) + 5 * Math.pow(t - 5, 2) + (t > 7 ? 30 * Math.pow(t - 7, 3) : 0);
-
-function sceneA(t) {
-  const push = 1 + 0.12 * eIn(seg(t, 5, 8));
-  ctx.save();
-  ctx.translate(W / 2, HY); ctx.scale(push, push); ctx.translate(-W / 2, -HY);
-  // sky
-  const sg = ctx.createLinearGradient(0, 0, 0, HY);
-  sg.addColorStop(0, '#020308'); sg.addColorStop(1, '#0a0f1f');
-  ctx.fillStyle = sg; ctx.fillRect(-200, -200, W + 400, HY + 200);
-  // dawn glow
-  const g = eOut(seg(t, 0.3, 4.5));
-  const dg = ctx.createRadialGradient(W / 2, HY, 0, W / 2, HY, 1100);
-  dg.addColorStop(0, `rgba(255,140,60,${0.42 * g})`); dg.addColorStop(0.35, `rgba(200,70,40,${0.16 * g})`); dg.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = dg; ctx.fillRect(-200, -200, W + 400, HY + 200);
-  // skyline
-  const sk = seg(t, 0.8, 3);
-  ctx.fillStyle = `rgba(3,4,9,${sk})`;
-  for (const b of sky) ctx.fillRect(b.x, HY - b.h, b.w, b.h);
-  for (const b of sky) for (const w of b.win) {
-    ctx.fillStyle = `rgba(255,190,120,${0.55 * sk})`; ctx.fillRect(w[0], w[1], 3, 4);
-  }
-  // ground
-  ctx.fillStyle = '#020306'; ctx.fillRect(-200, HY, W + 400, H - HY + 200);
-  const d = roadD(t);
-  const ra = 0.35 * seg(t, 0.8, 3.2) + 0.65 * seg(t, 4.9, 5.6);
-  if (ra > 0) {
-    ctx.save(); ctx.beginPath(); ctx.rect(-200, HY, W + 400, H); ctx.clip();
-    ctx.lineWidth = 1.5;
-    for (let i = 0; i < 40; i++) {
-      let z = ((i * 1.5 - d) % 60 + 60) % 60 + 0.4;
-      const y = HY + FOC * 1 / z;
-      ctx.strokeStyle = `rgba(63,214,255,${0.22 * ra * clamp(2 / z)})`;
-      ctx.beginPath(); ctx.moveTo(-200, y); ctx.lineTo(W + 200, y); ctx.stroke();
+const BAR = 138;
+const MACROS = [
+  { cx: 650, cy: 360, cw: 560, dr: [-30, 6], label: '01 — SCHNÜRUNG' },
+  { cx: 245, cy: 330, cw: 520, dr: [25, 0], label: '02 — FERSE' },
+  { cx: 500, cy: 690, cw: 600, dr: [40, -6], label: '03 — GEL-DÄMPFUNG' },
+  { cx: 770, cy: 650, cw: 560, dr: [-20, -10], label: '04 — SILHOUETTE' },
+];
+function s1(t) {
+  fillAll(PAL.ink);
+  if (t < 1) {
+    leak(t + 3, 0.35 * seg(t, 0, 0.7), 3);
+    const s = 'ASICS  —  GEL';
+    txt(typeOn(s, seg(t, 0.12, 0.7)) + (Math.floor(t * 5) % 2 ? '_' : ' '), W / 2, H / 2, { fam: MONO, size: 22, ls: 9, fill: '#EADCC8', w: 500 });
+  } else if (t < 3) {
+    const i = Math.floor((t - 1) / BEAT), u = (t - 1 - i * BEAT) / BEAT;
+    const m = MACROS[i];
+    macro(m.cx, m.cy, m.cw, u, [0, 0, W, H], m.dr);
+    viewfinder('rgba(242,236,228,0.75)', 70, BAR + 40, H - BAR - 40);
+    txt(m.label, 110, H - BAR - 82, { fam: MONO, size: 19, ls: 6, fill: '#F2ECE4', align: 'left', w: 500 });
+    txt(`${i + 1} / 4`, W - 110, H - BAR - 82, { fam: MONO, size: 19, ls: 6, fill: '#F2ECE4', align: 'right', w: 500 });
+    txt('ASICS GEL', W - 110, BAR + 82, { fam: MONO, size: 17, ls: 6, fill: 'rgba(242,236,228,0.7)', align: 'right', w: 500 });
+    const rec = Math.floor(t * 4) % 2;
+    ctx.fillStyle = `rgba(214,60,40,${rec ? 0.95 : 0.25})`; ctx.beginPath(); ctx.arc(118, BAR + 82, 6, 0, 7); ctx.fill();
+    txt('REC', 136, BAR + 82, { fam: MONO, size: 17, ls: 4, fill: 'rgba(242,236,228,0.8)', align: 'left', w: 500 });
+  } else if (t < 5) {
+    fillAll(PAL.cream);
+    const X = 210, sz = 148;
+    reveal('Die Stadt hat', X, H * 0.36, seg(t, 3.0, 3.35), { w: 900, size: sz, ls: -5, align: 'left', fill: PAL.ink });
+    reveal('ihren eigenen', X, H * 0.36 + sz * 1.0, seg(t, 3.5, 3.85), { w: 900, size: sz, ls: -5, align: 'left', fill: PAL.ink });
+    reveal('Takt.', X - 4, H * 0.36 + sz * 2.05, seg(t, 4.0, 4.35), { fam: SERIF, italic: true, w: 400, size: sz * 1.12, ls: -2, align: 'left', fill: PAL.rose });
+    // small product, enters on beat
+    const e = eOut(seg(t, 4.0, 4.45));
+    if (e > 0) {
+      const x = lerp(W + 300, W * 0.77, e), y = H * 0.58 + Math.sin(t * 2) * 6;
+      shadow(x, H * 0.58 + 210, 0.5, 0.35 * e);
+      shoe(x, y, 0.5, -8);
     }
-    for (let xw = -9; xw <= 9; xw += 1.5) {
-      const center = Math.abs(xw) < 0.01;
-      ctx.strokeStyle = center ? `rgba(255,122,47,${0.5 * ra})` : `rgba(63,214,255,${0.16 * ra})`;
-      ctx.beginPath(); ctx.moveTo(W / 2 + FOC * xw / 0.4, HY + FOC / 0.4); ctx.lineTo(W / 2 + FOC * xw / 60, HY + FOC / 60); ctx.stroke();
-    }
-    ctx.restore();
-  }
-  // horizon line
-  const hw = W * eIO(seg(t, 0.2, 2.4));
-  const hg = ctx.createLinearGradient(W / 2 - hw / 2, 0, W / 2 + hw / 2, 0);
-  hg.addColorStop(0, 'rgba(255,170,110,0)'); hg.addColorStop(0.5, 'rgba(255,215,170,0.95)'); hg.addColorStop(1, 'rgba(255,170,110,0)');
-  ctx.save(); ctx.shadowColor = 'rgba(255,120,50,0.9)'; ctx.shadowBlur = 24;
-  ctx.fillStyle = hg; ctx.fillRect(W / 2 - hw / 2, HY - 1, hw, 2); ctx.restore();
-  // streaks
-  const sa = seg(t, 5.4, 6.2);
-  if (sa > 0) {
-    const speed = 2 + 10 * (t - 5) + (t > 7 ? 90 * Math.pow(t - 7, 2) : 0);
-    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round';
-    for (const s of streaks) {
-      const z = ((s.z0 - d * 1.4) % 60 + 60) % 60 + 0.3;
-      const z2 = z + 0.25 + speed * 0.02;
-      const cx = Math.cos(s.ang) * s.rad, cy = Math.sin(s.ang) * s.rad * 0.6;
-      const x1 = W / 2 + FOC * cx / z, y1 = HY + FOC * cy / z;
-      const x2 = W / 2 + FOC * cx / z2, y2 = HY + FOC * cy / z2;
-      const al = sa * clamp(3 / z) * 0.8;
-      ctx.strokeStyle = s.warm ? `rgba(255,150,80,${al})` : `rgba(120,220,255,${al})`;
-      ctx.lineWidth = clamp(4 / z, 0.6, 3);
-      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
-    }
-    ctx.restore();
-  }
-  ctx.restore();
-
-  // texts (not pushed)
-  const ta = inOut(t, 0.6, 1.2, 2.1, 2.5);
-  const colon = Math.floor(t * 2) % 2 ? ':' : ' ';
-  txt('05' + colon + '47', W / 2, HY - 150, { fam: MONO, w: 300, size: 46, ls: 10, a: ta * 0.9, fill: '#ffd9b8' });
-  txt('MORGENS', W / 2, HY - 95, { fam: MONO, w: 400, size: 18, ls: 12, a: ta * 0.5, fill: '#ffd9b8' });
-
-  const a2 = inOut(t, 2.6, 3.3, 4.4, 4.85);
-  txt('Die Stadt schläft noch.', W / 2, H * 0.40 + 14 * (1 - eOut(seg(t, 2.6, 3.6))), { w: 300, size: 84, ls: 1, a: a2, blur: 14 * (1 - eOut(seg(t, 2.6, 3.4))) + 10 * seg(t, 4.4, 4.85) });
-
-  if (t >= 5) {
-    const slam = 1.14 - 0.14 * eOut(seg(t, 5, 5.3));
-    const rush = eIn(seg(t, 6.9, 8));
-    txt('Du nicht.', W / 2, H * 0.40, { w: 900, size: 190, ls: -2, sc: slam + rush * 1.4, a: 1 - seg(t, 7.3, 7.9), blur: rush * 26 });
-  }
-}
-
-// =====================================================================
-//  SCENE B  8 – 13 s   Produkt-Reveal
-// =====================================================================
-const B_P = [500, -170], B_Q = [W / 2, H * 0.48];
-const bScale = t => 1.22 * (1 + 0.05 * seg(t, 8.9, 13));
-function studioBG(t, warm = 0) {
-  ctx.fillStyle = '#020308'; ctx.fillRect(-100, -100, W + 200, H + 200);
-  spotlightBG(W / 2, H * 0.32, `rgba(30,55,130,${0.75})`, 'rgba(2,3,8,0)', 1150);
-  // light beam
-  ctx.save(); ctx.globalCompositeOperation = 'lighter';
-  const bg = ctx.createLinearGradient(0, -100, 0, H * 0.8);
-  bg.addColorStop(0, 'rgba(120,170,255,0.10)'); bg.addColorStop(1, 'rgba(120,170,255,0)');
-  ctx.fillStyle = bg; ctx.beginPath();
-  ctx.moveTo(W / 2 - 160, -100); ctx.lineTo(W / 2 + 160, -100); ctx.lineTo(W / 2 + 720, H * 0.8); ctx.lineTo(W / 2 - 720, H * 0.8); ctx.fill();
-  ctx.restore();
-  if (warm) spotlightBG(W * 0.85, H * 0.15, `rgba(255,110,50,${0.10 * warm})`, 'rgba(0,0,0,0)', 900);
-}
-
-function sceneB(t) {
-  studioBG(t);
-  const s = bScale(t);
-  const m0 = frame(B_P[0], B_P[1], B_Q[0], B_Q[1], s);
-  const gy = tp(m0, 500, 0).y;
-  floorPlane(gy, seg(t, 8, 8.6));
-  // giant GEL outline
-  const ga = seg(t, 8.5, 9.5);
-  txt('GEL', W / 2 + 80 - 160 * seg(t, 8, 13), H * 0.44, { w: 900, italic: true, size: 640, ls: 10, fill: null, stroke: `rgba(63,214,255,${0.20 * ga})`, lw: 2.5 });
-  dust(t, 3, 70, 0.35 * seg(t, 8, 9));
-  // entry
-  const e = eExpo(seg(t, 8.0, 8.85));
-  const qx = lerp(-900, B_Q[0], e);
-  const m = frame(B_P[0], B_P[1], qx, B_Q[1], s);
-  const vel = (1 - e) * 120;
-  placeShoe(m, { gel: 0.7 + 0.5 * hitEnv(t, 8.85, 3), shadow: e, refl: 0.30 * e, sweep: seg(t, 9.1, 10.4), trail: vel > 4 ? { n: 6, dx: vel * 0.6 } : null });
-  // kicker
-  const ka = inOut(t, 10.0, 10.6, 12.6, 13.0);
-  txt('DÄMPFUNG. NEU GEDACHT.', W / 2, H * 0.89, { w: 600, size: 34, ls: 16, a: ka, blur: 8 * (1 - seg(t, 10, 10.5)) });
-  const la = eOut(seg(t, 10.2, 11.0)) * (1 - seg(t, 12.6, 13));
-  ctx.fillStyle = `rgba(63,214,255,${la})`; ctx.fillRect(W / 2 - 60 * la, H * 0.89 + 34, 120 * la, 2);
-}
-
-// =====================================================================
-//  SCENE C  13 – 18 s   Technik-Close-up GEL
-// =====================================================================
-const C_P = [GEL.x, GEL.y], C_Q = [W * 0.70, H * 0.56];
-const PULSES = [14.5, 15.5, 16.5];
-function sceneC(t) {
-  const z = eIO(seg(t, 13.0, 14.1));
-  const out = eIn(seg(t, 17.2, 18.0));
-  studioBG(t);
-  ctx.fillStyle = `rgba(2,4,10,${0.55 * z})`; ctx.fillRect(-100, -100, W + 200, H + 200);
-  // blueprint grid
-  if (z > 0) {
-    ctx.save(); ctx.strokeStyle = `rgba(63,214,255,${0.06 * z})`; ctx.lineWidth = 1;
-    const off = (t * 20) % 60;
-    for (let x = -60 + off; x < W + 60; x += 60) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
-    for (let y = -60 + off; y < H + 60; y += 60) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
-    ctx.restore();
-  }
-  const s0 = bScale(13), s1 = 3.3;
-  let s = Math.exp(lerp(Math.log(s0), Math.log(s1), z)) * (1 + out * 0.9);
-  const px = lerp(B_P[0], C_P[0], z), py = lerp(B_P[1], C_P[1], z);
-  const qx = lerp(B_Q[0], C_Q[0], z), qy = lerp(B_Q[1], C_Q[1], z);
-  let pulse = 0; for (const h of PULSES) pulse += hitEnv(t, h, 4.5);
-  const m = frame(px, py, qx, qy, s);
-  const gy = tp(m, 500, 0).y;
-  if (gy < H + 200) floorPlane(gy, 1 - z);
-  // impact rings behind
-  const gc0 = tp(m, GEL.x, GEL.y);
-  ctx.save(); ctx.globalCompositeOperation = 'lighter';
-  for (const h of PULSES) {
-    const age = t - h; if (age < 0 || age > 1.1) continue;
-    for (let k = 0; k < 3; k++) {
-      const a2 = age - k * 0.08; if (a2 < 0) continue;
-      const r = 120 + a2 * 1100;
-      ctx.strokeStyle = `rgba(63,214,255,${0.5 * (1 - a2 / 1.1) * (1 - k * 0.3)})`;
-      ctx.lineWidth = 3 - k;
-      ctx.beginPath(); ctx.ellipse(gc0.x, gc0.y, r, r * 0.55, 0, 0, 7); ctx.stroke();
-    }
-  }
-  ctx.restore();
-  // shoe (squash on impact)
-  const sq = pulse * 0.025;
-  const m2 = m.translate(GEL.x, 0).scale(1 + sq * 0.5, 1 - sq).translate(-GEL.x, 0);
-  ctx.save(); if (out > 0) ctx.filter = `blur(${out * 14}px)`;
-  const { gc } = placeShoe(m2, { gel: 0.8 + 1.2 * pulse, shadow: 1 - z, refl: 0.3 * (1 - z), sweep: seg(t, 13.6, 14.8) });
-  ctx.restore();
-  // callout
-  const ta = 1 - out;
-  const cl = eOut(seg(t, 14.0, 14.6));
-  const ex = W * 0.47, ey = H * 0.33;
-  if (cl > 0) {
-    ctx.save(); ctx.globalAlpha = ta;
-    ctx.strokeStyle = C.cyan; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(gc.x, gc.y, 9 + 4 * pulse, 0, 7); ctx.stroke();
-    ctx.fillStyle = C.cyan; ctx.beginPath(); ctx.arc(gc.x, gc.y, 4, 0, 7); ctx.fill();
-    const k1 = clamp(cl * 2), k2 = clamp(cl * 2 - 1);
-    ctx.beginPath(); ctx.moveTo(gc.x, gc.y);
-    ctx.lineTo(lerp(gc.x, ex, k1), lerp(gc.y, ey, k1));
-    if (k2 > 0) ctx.lineTo(lerp(ex, W * 0.08, k2), ey);
-    ctx.stroke();
-    ctx.restore();
-  }
-  const X = W * 0.08;
-  txt('GEL-TECHNOLOGIE', X, ey - 34, { align: 'left', w: 800, size: 34, ls: 12, fill: C.cyan, a: ta * seg(t, 14.4, 14.9) });
-  txt('Absorbiert den Aufprall.', X - 4, ey + 70, { align: 'left', w: 300, size: 76, a: ta * seg(t, 14.9, 15.4), blur: 10 * (1 - seg(t, 14.9, 15.3)) });
-  txt('Gibt dir Energie zurück.', X - 4, ey + 160, { align: 'left', w: 800, size: 76, a: ta * seg(t, 15.9, 16.4), blur: 10 * (1 - seg(t, 15.9, 16.3)) });
-  // small spec lines
-  const sp = ta * seg(t, 16.6, 17.0);
-  txt('FERSE  ·  VORFUSS  ·  JEDER SCHRITT', X, ey + 240, { align: 'left', fam: MONO, w: 400, size: 20, ls: 6, fill: 'rgba(200,220,255,0.7)', a: sp });
-}
-
-// =====================================================================
-//  SCENE D  18 – 24 s   Lauf-Sequenz / Kilometer
-// =====================================================================
-const D_GY = H * 0.78, D_S = 0.92;
-const speedLines = (() => { const r = rng(21), a = []; for (let i = 0; i < 90; i++) a.push({ y: r() * H, len: 120 + r() * 520, sp: 1800 + r() * 3200, x0: r() * 4000, w: 0.6 + r() * 2.2, warm: r() < 0.3 }); return a; })();
-const KM = [['1', 18], ['21', 20], ['42', 22]];
-
-function runPose(t) {
-  const ph = ((t - 18) / 0.5) % 1;
-  let rot, lift;
-  if (ph < 0.4) {
-    const q = ph / 0.4;
-    rot = q < 0.35 ? lerp(-8, 0, eOut(q / 0.35)) : lerp(0, 16, eIn((q - 0.35) / 0.65));
-    lift = 0;
+    txt('(01)', 110, BAR + 70, { fam: MONO, size: 17, ls: 5, fill: PAL.mocha, align: 'left', w: 500 });
+    txt('ASICS GEL', W - 110, BAR + 70, { fam: MONO, size: 17, ls: 5, fill: PAL.mocha, align: 'right', w: 500 });
+    ctx.fillStyle = 'rgba(90,66,51,0.35)'; ctx.fillRect(110, H - BAR - 70, W - 220, 1);
   } else {
-    const q = (ph - 0.4) / 0.6;
-    rot = lerp(16, -8, eIO(q));
-    lift = Math.sin(Math.PI * q) * 150;
-  }
-  return { ph, rot, lift };
-}
-
-function sceneD(t) {
-  ctx.fillStyle = '#03050c'; ctx.fillRect(-100, -100, W + 200, H + 200);
-  spotlightBG(W / 2, H * 0.45, 'rgba(25,45,110,0.75)', 'rgba(3,5,12,0)', 1200);
-  spotlightBG(W * 0.15, H * 0.9, 'rgba(255,110,50,0.12)', 'rgba(0,0,0,0)', 900);
-  // speed lines
-  ctx.save(); ctx.globalCompositeOperation = 'lighter';
-  for (const l of speedLines) {
-    const x = W + 200 - ((l.x0 + l.sp * (t - 18)) % (W + 1400));
-    const g = ctx.createLinearGradient(x, 0, x + l.len, 0);
-    const col = l.warm ? '255,140,70' : '120,200,255';
-    g.addColorStop(0, `rgba(${col},0.35)`); g.addColorStop(1, `rgba(${col},0)`);
-    ctx.fillStyle = g; ctx.fillRect(x, l.y, l.len, l.w);
-  }
-  ctx.restore();
-  // kilometer typography
-  for (let i = 0; i < KM.length; i++) {
-    const [n, t0] = KM[i]; const t1 = t0 + 2;
-    if (t < t0 || t >= t1) continue;
-    const k = seg(t, t0, t0 + 0.28);
-    const sc = lerp(1.35, 1, eOut(k));
-    txt('KILOMETER', W / 2, H * 0.17, { w: 700, size: 46, ls: 26, fill: C.orange, a: eOut(k) });
-    txt(n, W / 2, H * 0.47, { w: 900, size: 520, ls: -10, sc, a: 0.95 * eOut(k), fill: 'rgba(244,246,250,0.92)', blur: 12 * (1 - k) });
-    txt(n, W / 2, H * 0.47, { w: 900, size: 520, ls: -10, sc: sc * 1.04, fill: null, stroke: `rgba(63,214,255,${0.35 * eOut(k)})`, lw: 2 });
-  }
-  // ground line with moving dashes
-  ctx.fillStyle = 'rgba(140,190,255,0.25)'; ctx.fillRect(0, D_GY, W, 2);
-  const fg = ctx.createLinearGradient(0, D_GY, 0, H);
-  fg.addColorStop(0, 'rgba(30,50,100,0.25)'); fg.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = fg; ctx.fillRect(0, D_GY, W, H - D_GY);
-  ctx.fillStyle = 'rgba(255,122,47,0.55)';
-  const off = ((t - 18) * 2600) % 260;
-  for (let x = -off; x < W; x += 260) ctx.fillRect(x, D_GY + 70, 120, 3);
-  // shoe
-  const p = runPose(t);
-  const cx = W / 2 - 40 + Math.sin(p.ph * Math.PI * 2) * 25;
-  let m = new DOMMatrix().translate(cx, D_GY).rotate(p.rot).scale(D_S).translate(-500, 0);
-  let maxY = -1e9; for (const [x, y] of HULL) maxY = Math.max(maxY, tp(m, x, y).y);
-  m = new DOMMatrix().translate(0, D_GY - maxY - p.lift).multiply(m);
-  const landAge = (p.ph) * 0.5;
-  // ripple
-  const heel = tp(m, 120, 0);
-  if (landAge < 0.45) {
-    const a = 1 - landAge / 0.45;
-    ctx.save(); ctx.globalCompositeOperation = 'lighter';
-    ctx.strokeStyle = `rgba(63,214,255,${0.7 * a})`; ctx.lineWidth = 2.5;
-    const rx = 60 + landAge * 1300;
-    ctx.beginPath(); ctx.ellipse(heel.x + 100, D_GY, rx, rx * 0.09, 0, 0, 7); ctx.stroke();
+    fillAll(PAL.ink);
+    const words = ['Du', 'hast', 'deinen.'], at = [5.0, 5.25, 5.5];
+    const zoom = eIn(seg(t, 5.75, 6.0));
+    ctx.save(); ctx.translate(W / 2, H / 2); ctx.scale(1 + zoom * 2.5, 1 + zoom * 2.5); ctx.translate(-W / 2, -H / 2);
+    const o = { w: 900, size: 190, ls: -6, fill: PAL.bone };
+    const full = words.join(' ');
+    const total = tw(full, o);
+    let x = W / 2 - total / 2;
+    for (let i = 0; i < 3; i++) {
+      const wi = tw(words[i] + ' ', o);
+      const k = seg(t, at[i], at[i] + 0.1);
+      if (k > 0) {
+        const fam = i === 2 ? { ...o, fam: SERIF, italic: true, w: 400, fill: PAL.blush, size: 210, ls: -2 } : o;
+        txt(words[i], x, H / 2 + (1 - eOut(k)) * 40, { ...fam, align: 'left', a: k, blur: zoom * 20 });
+      }
+      x += wi;
+    }
     ctx.restore();
   }
-  // shadow scaled by lift
-  ctx.save();
-  const sh = 1 - p.lift / 220;
-  ctx.translate(cx, D_GY); ctx.scale(1, 0.08);
-  const sgr = ctx.createRadialGradient(0, 0, 0, 0, 0, 520 * D_S * sh);
-  sgr.addColorStop(0, `rgba(0,0,0,${0.8 * sh})`); sgr.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = sgr; ctx.beginPath(); ctx.arc(0, 0, 520 * D_S * sh, 0, 7); ctx.fill();
-  ctx.restore();
-  const rush = eIn(seg(t, 23.55, 24.0));
-  if (rush > 0) m = new DOMMatrix().translate(W / 2, H / 2).scale(1 + rush * 2.2).translate(-W / 2, -H / 2).multiply(m);
-  ctx.save(); if (rush > 0) ctx.filter = `blur(${rush * 18}px)`;
-  placeShoe(m, { gel: 0.7 + 1.6 * Math.exp(-landAge * 9), trail: { n: 4, dx: -16 } });
-  ctx.restore();
-  // landing dust
-  const r = rng(Math.floor((t - 18) / 0.5) + 100);
-  ctx.save();
-  for (let i = 0; i < 14; i++) {
-    const vx = (r() - 0.3) * 600, vy = -r() * 260, sz = 1 + r() * 2.5;
-    const a = landAge;
-    const x = heel.x + 80 + vx * a, y = D_GY + vy * a + 400 * a * a;
-    ctx.globalAlpha = clamp(1 - a / 0.4) * 0.6; ctx.fillStyle = '#cfe6ff';
-    ctx.beginPath(); ctx.arc(x, Math.min(y, D_GY), sz, 0, 7); ctx.fill();
-  }
-  ctx.restore();
+}
+function letterbox(t) {
+  let bh = BAR;
+  if (t >= 6) bh = BAR * (1 - eOut(seg(t, 6.0, 6.4)));
+  if (t >= 6.4) return;
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, bh); ctx.fillRect(0, H - bh, W, bh);
 }
 
 // =====================================================================
-//  SCENE E  24 – 30 s   Packshot / Endcard
+//  S2  6–12  Hero / Marquee / Farbblöcke
 // =====================================================================
-function sceneE(t) {
-  studioBG(t, seg(t, 24, 26));
-  dust(t, 8, 60, 0.3);
-  const e = eOut(seg(t, 24, 25.4));
-  const fl = Math.sin((t - 24) * 1.4) * 6;
-  const s = 1.0 * lerp(1.18, 1, e);
-  const m = frame(500, -170, W / 2, H * 0.37 + fl, s, -3);
-  const gy = H * 0.37 + 170 * s + 22;
-  floorPlane(gy + 4, 1);
-  placeShoe(m, { gel: 0.9 + 0.3 * Math.sin((t - 24) * 3), shadow: 0.8, lift: -fl * 0.2, refl: 0.26, reflY: gy, sweep: seg(t, 24.7, 25.9) });
+const S2B = [
+  { bg: PAL.mocha, fg: PAL.bone, mq: 'rgba(242,236,228,0.09)', mqs: 'rgba(242,236,228,0.22)' },
+  { bg: PAL.cream, fg: PAL.ink, mq: 'rgba(90,66,51,0.10)', mqs: 'rgba(90,66,51,0.28)' },
+  { bg: PAL.blush, fg: PAL.ink, mq: 'rgba(255,255,255,0.28)', mqs: 'rgba(120,60,45,0.25)' },
+];
+function heroPose2(t) {
+  const bar = t < 8 ? 0 : t < 10 ? 1 : 2;
+  let x = W / 2, y = H * 0.47, s = 1.0, rot = -6, flip = false;
+  if (bar === 0) {
+    const e = seg(t, 6.0, 6.32);
+    y = lerp(-650, H * 0.47, eBack(e)); rot = lerp(-28, -6, eOut(e));
+    rot += Math.sin((t - 6) * 1.6) * 2.5;
+  } else if (bar === 1) { flip = true; rot = 9 + Math.sin((t - 8) * 1.4) * 2; s = 1.1; x = W * 0.5; }
+  else { rot = -16 + Math.sin((t - 10) * 1.6) * 2; s = 0.96; x = W * 0.5 + (t - 10) * 10; }
+  y += Math.sin(t * 2.4) * 10;
+  s *= 1 + 0.035 * Math.exp(-beatPh(t, 6) * 12);
+  return { x, y, s, rot, flip };
+}
+function s2(t) {
+  const bar = t < 8 ? 0 : t < 10 ? 1 : 2, B = S2B[bar];
+  fillAll(B.bg);
+  const sp = ctx.createRadialGradient(W / 2, H * 0.45, 0, W / 2, H * 0.45, 1100);
+  sp.addColorStop(0, 'rgba(255,255,255,0.10)'); sp.addColorStop(1, 'rgba(0,0,0,0.18)');
+  ctx.fillStyle = sp; ctx.fillRect(0, 0, W, H);
+  marquee('ASICS GEL — ', H * 0.17, 290, 260, t, { fill: B.mq });
+  marquee('KOMFORT — STIL — ', H * 0.5, 290, -330, t, { stroke: B.mqs, lw: 2 });
+  marquee('ASICS GEL — ', H * 0.83, 290, 260, t + 1.7, { fill: B.mq });
+  const p = heroPose2(t);
+  const floor = H * 0.47 + 0.5 * 783 * p.s + 10;
+  shadow(p.x, floor, p.s, 0.45 * seg(t, 6.15, 6.35), 1 + Math.sin(t * 2.4) * 0.04);
+  if (t < 6.5) for (let k = 4; k >= 1; k--) { const q = heroPose2(t - k * 0.025); shoe(q.x, q.y, q.s, q.rot, { flip: q.flip, a: 0.18 * (1 - k / 5) }); }
+  if (bar === 2) for (let k = 3; k >= 1; k--) { const q = heroPose2(t - k * 0.06); shoe(q.x - k * 26, q.y, q.s, q.rot, { flip: q.flip, a: 0.12 * (1 - k / 4) }); }
+  shoe(p.x, p.y, p.s, p.rot, { flip: p.flip });
+  // editorial furniture
+  frameBorder(bar === 0 ? 'rgba(242,236,228,0.25)' : 'rgba(43,32,25,0.25)');
+  const words = ['KOMFORT', 'STIL', 'HALTUNG'];
+  const act = Math.floor((t - 6) / BEAT) % 3;
+  words.forEach((w, i) => txt(w, W - 90, H * 0.43 + i * 40, { fam: MONO, size: 20, ls: 7, w: 600, align: 'right', fill: B.fg, a: i === act ? 1 : 0.28 }));
+  corners(B.fg, { tl: 'ASICS', tr: 'N° 02', bl: 'GEL — SERIES', br: '120 BPM' });
+  txt('↘', 90, H * 0.5, { fam: SANS, size: 40, w: 300, fill: B.fg, align: 'left' });
+}
+
+// =====================================================================
+//  S3  12–18  Triptychon + Datenblatt
+// =====================================================================
+const PANELS = [
+  { bg: PAL.cream, fg: PAL.ink, sub: PAL.rose, fp: [100, 345], s: 1.9, dr: [18, -10], n: '01', title: 'GEL-DÄMPFUNG', text: 'Weich bei jedem Schritt.' },
+  { bg: PAL.clay, fg: PAL.ink, sub: PAL.bone, fp: [420, 400], s: 1.75, dr: [-20, 8], n: '02', title: 'SCHICHT FÜR SCHICHT', text: 'Mehrlagiges Obermaterial.' },
+  { bg: PAL.mocha, fg: PAL.bone, sub: PAL.blush, fp: [560, 320], s: 1.8, dr: [10, 14], n: '03', title: 'RETRO-RUNNER-DNA', text: 'Ikonische Linien.' },
+];
+const CALLOUTS = [
+  { p: [95, 350], at: 15.5, lx: 150, ly: H * 0.27, side: 'L', title: 'GEL-TECHNOLOGIE', text: 'Dämpfung in der Ferse' },
+  { p: [545, 300], at: 16.0, lx: W - 150, ly: H * 0.22, side: 'R', title: 'SCHNÜRUNG', text: 'Sicherer, fester Sitz' },
+  { p: [650, 700], at: 16.5, lx: W - 150, ly: H * 0.80, side: 'R', title: 'AUSSENSOHLE', text: 'Grip für die Stadt' },
+];
+function s3(t) {
+  if (t < 15) {
+    fillAll(PAL.ink);
+    PANELS.forEach((P, i) => {
+      const inP = eOut(seg(t, 12 + i * 0.12, 12.45 + i * 0.12));
+      const outP = eIn(seg(t, 14.55 + i * 0.1, 14.95 + i * 0.1));
+      const x0 = i * 640, y0 = (1 - inP) * H - outP * H;
+      ctx.save(); ctx.beginPath(); ctx.rect(x0, y0, 640, H); ctx.clip();
+      ctx.fillStyle = P.bg; ctx.fillRect(x0, y0, 640, H);
+      const u = t - 12;
+      const cx = x0 + 320 + P.dr[0] * u, cy = y0 + H * 0.42 + P.dr[1] * u;
+      const img = IMG.cut;
+      const sx = cx - (P.fp[0] - img.width / 2) * P.s, sy = cy - (P.fp[1] - img.height / 2) * P.s;
+      shoe(sx, sy, P.s * (1 + 0.03 * u), 0);
+      // label block
+      const ly = y0 + H - 250;
+      const g = ctx.createLinearGradient(0, ly - 120, 0, y0 + H);
+      g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, P.bg);
+      ctx.fillStyle = g; ctx.fillRect(x0, ly - 120, 640, 370);
+      txt(P.n, x0 + 56, y0 + 80, { fam: MONO, size: 20, ls: 5, w: 600, fill: P.fg, align: 'left' });
+      ctx.fillStyle = P.fg; ctx.globalAlpha = 0.5; ctx.fillRect(x0 + 56, y0 + 104, 40, 1.5); ctx.globalAlpha = 1;
+      const lp = seg(t, 12.6 + i * 0.25, 13.0 + i * 0.25);
+      reveal(P.title, x0 + 56, ly + 60, lp, { w: 900, size: 46, ls: -1, fill: P.fg, align: 'left' });
+      reveal(P.text, x0 + 56, ly + 120, seg(t, 12.8 + i * 0.25, 13.2 + i * 0.25), { fam: SERIF, italic: true, size: 38, fill: P.sub, align: 'left' });
+      ctx.restore();
+      if (i > 0) { ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(x0, y0, 1.5, H); }
+    });
+  } else {
+    fillAll(PAL.bone);
+    const out = eIn(seg(t, 17.5, 18.0));
+    ctx.save();
+    ctx.translate(W / 2, H / 2); ctx.scale(1 + out * 0.5, 1 + out * 0.5); ctx.translate(-W / 2, -H / 2);
+    if (out > 0) ctx.filter = `blur(${out * 12}px)`;
+    // grid
+    ctx.fillStyle = 'rgba(90,66,51,0.07)';
+    for (let x = 0; x < W; x += 80) ctx.fillRect(x, 0, 1, H);
+    for (let y = 0; y < H; y += 80) ctx.fillRect(0, y, W, 1);
+    const e = eOut(seg(t, 15.0, 15.45));
+    const sx = W / 2, sy = H * 0.5 + Math.sin(t * 2) * 5, s = lerp(1.25, 0.92, e), rot = lerp(4, 0, e);
+    shadow(sx, H * 0.5 + 0.5 * 783 * s + 12, s, 0.35);
+    shoe(sx, sy, s, rot);
+    for (const c of CALLOUTS) {
+      const k = seg(t, c.at, c.at + 0.3);
+      if (k <= 0) continue;
+      const pt = shoePt(c.p[0], c.p[1], sx, sy, s, rot);
+      const ax = c.side === 'L' ? c.lx + 330 : c.lx - 330, ay = c.ly + 34;
+      const k1 = eOut(clamp(k * 1.6)), k2 = eOut(clamp(k * 1.6 - 0.6));
+      ctx.strokeStyle = PAL.ink; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(pt.x, pt.y); ctx.lineTo(lerp(pt.x, ax, k1), lerp(pt.y, ay, k1)); ctx.stroke();
+      if (k2 > 0) { ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(lerp(ax, c.lx, k2), ay); ctx.stroke(); }
+      ctx.fillStyle = PAL.ink; ctx.beginPath(); ctx.arc(pt.x, pt.y, 5, 0, 7); ctx.fill();
+      const pr = (t - c.at) % 1.2;
+      ctx.strokeStyle = `rgba(184,117,98,${1 - pr / 1.2})`; ctx.beginPath(); ctx.arc(pt.x, pt.y, 8 + pr * 30, 0, 7); ctx.stroke();
+      const al = c.side === 'L' ? 'left' : 'right';
+      txt(typeOn(c.title, seg(t, c.at + 0.15, c.at + 0.45)), c.lx, c.ly, { w: 800, size: 28, ls: 4, fill: PAL.ink, align: al });
+      txt(typeOn(c.text, seg(t, c.at + 0.3, c.at + 0.7)), c.lx, c.ly + 72, { fam: SERIF, italic: true, size: 36, fill: PAL.rose, align: al });
+    }
+    ruler(H - 100, 'rgba(43,32,25,0.55)', t);
+    txt('TECHNISCHE DATEN', 66, 70, { fam: MONO, size: 17, ls: 5, w: 600, fill: PAL.ink, align: 'left' });
+    txt('ASICS GEL — N° 03', W - 66, 70, { fam: MONO, size: 17, ls: 5, w: 600, fill: PAL.ink, align: 'right' });
+    ctx.restore();
+  }
+}
+
+// =====================================================================
+//  S4  18–24  Raster / Tageszeiten / Schnittgewitter
+// =====================================================================
+const GRIDC = [PAL.cream, PAL.clay, PAL.mocha, PAL.blush];
+const DAY = [
+  { w: 'MORGENS.', bg: PAL.cream, fg: PAL.ink, time: '07:30', p: { x: .5, y: .56, s: .82, rot: -12, flip: false } },
+  { w: 'MITTAGS.', bg: PAL.clay, fg: PAL.ink, time: '13:00', p: { x: .5, y: .54, s: .86, rot: 10, flip: true } },
+  { w: 'ABENDS.', bg: PAL.mocha, fg: PAL.bone, time: '19:45', p: { x: .5, y: .57, s: .84, rot: -24, flip: false } },
+  { w: 'NACHTS.', bg: PAL.ink, fg: PAL.bone, time: '00:15', p: { x: .5, y: .55, s: .9, rot: 4, flip: true } },
+];
+const CUTS = ['m0', 'h1', 'm1', 'h2', 'm2', 'h3', 'h4', 'black'];
+function s4(t) {
+  if (t < 20) {
+    const shift = t >= 19 ? 1 : 0;
+    for (let j = 0; j < 3; j++) for (let i = 0; i < 4; i++) {
+      const idx = (i + j * 4), d = (i + j) * 0.05;
+      const pop = eBack(seg(t, 18 + d, 18.35 + d));
+      const pulse = Math.exp(-beatPh(t - d, 18) * 9) * 0.06;
+      const x = i * 480, y = j * 360;
+      ctx.fillStyle = GRIDC[(i + j + shift * 2) % 4]; ctx.fillRect(x, y, 480, 360);
+      const s = 0.31 * pop * (1 + pulse);
+      if (s > 0.01) shoe(x + 240, y + 175, s, Math.sin(t * 3 + idx) * 9 + (idx % 2 ? 6 : -10), { flip: (idx + shift) % 2 === 1 });
+    }
+    ctx.fillStyle = 'rgba(0,0,0,0.12)';
+    for (let i = 1; i < 4; i++) ctx.fillRect(i * 480, 0, 1, H);
+    for (let j = 1; j < 3; j++) ctx.fillRect(0, j * 360, W, 1);
+    if (t >= 19.0) {
+      const k = eOut(seg(t, 19.0, 19.25));
+      const bh = 300 * k;
+      ctx.fillStyle = PAL.ink; ctx.fillRect(0, H / 2 - bh / 2, W, bh);
+      ctx.save(); ctx.beginPath(); ctx.rect(0, H / 2 - bh / 2, W, bh); ctx.clip();
+      txt('ÜBERALL.', W / 2 - 400 * (t - 19), H / 2 + 8, { w: 900, size: 270, ls: -10, fill: PAL.bone });
+      txt('ASICS GEL', W - 90, H / 2 + 120, { fam: MONO, size: 17, ls: 6, fill: PAL.blush, align: 'right', w: 600 });
+      ctx.restore();
+    }
+  } else if (t < 22) {
+    const i = Math.min(3, Math.floor((t - 20) / BEAT)), D = DAY[i], u = t - 20 - i * BEAT;
+    fillAll(D.bg);
+    const k = eOut(seg(u, 0, 0.12));
+    txt(D.w, W / 2, H * 0.47, { w: 900, size: 300, ls: -12, fill: D.fg, sc: lerp(1.12, 1, k) });
+    const p = D.p, mv = u * 60;
+    const x = W * p.x + (p.flip ? -mv : mv), y = H * p.y;
+    for (let e = 3; e >= 1; e--) shoe(x - (p.flip ? -1 : 1) * e * 30, y, W * 0 + p.s, p.rot, { flip: p.flip, a: 0.12 * (1 - e / 4) });
+    shadow(x, y + 0.5 * 783 * p.s + 30, p.s, 0.4);
+    shoe(x, y, p.s, p.rot, { flip: p.flip });
+    corners(D.fg, { tl: D.time, tr: 'ASICS GEL', bl: `0${i + 1} / 04`, br: 'DEIN TAG' });
+  } else {
+    const i = Math.min(7, Math.floor((t - 22) / 0.25)), u = (t - 22 - i * 0.25) / 0.25, c = CUTS[i];
+    if (c[0] === 'm') { const m = MACROS[[0, 2, 3][+c[1]]]; macro(m.cx, m.cy, m.cw * 0.9, u, [0, 0, W, H], m.dr); }
+    else if (c === 'black') { fillAll('#000'); }
+    else {
+      const v = { h1: [PAL.blush, -10, false, 1.1], h2: [PAL.mocha, 14, true, 1.2], h3: [PAL.cream, -4, false, 1.0], h4: [PAL.clay, -20, true, 1.25] }[c];
+      fillAll(v[0]);
+      if (c === 'h3') txt('GEL', W / 2, H / 2, { w: 900, size: 640, ls: -20, fill: null, stroke: PAL.mocha, lw: 3 });
+      if (c === 'h2') marquee('ASICS GEL — ', H / 2, 330, -900, t, { fill: 'rgba(242,236,228,0.12)' });
+      const z = 1 + (1 - eOut(u)) * 0.12;
+      const jit = c === 'h4' ? Math.sin(t * 90) * 14 : 0;
+      shoe(W / 2 + jit, H * 0.5, v[3] * z, v[1], { flip: v[2] });
+    }
+  }
+}
+
+// =====================================================================
+//  S5  24–30  Endcard
+// =====================================================================
+function s5(t) {
+  fillAll(PAL.bone);
+  const sp = ctx.createRadialGradient(W / 2, H * 0.38, 0, W / 2, H * 0.38, 1000);
+  sp.addColorStop(0, 'rgba(255,255,255,0.5)'); sp.addColorStop(1, 'rgba(185,160,139,0.25)');
+  ctx.fillStyle = sp; ctx.fillRect(0, 0, W, H);
+  const e = eOut(seg(t, 24.0, 25.3));
+  const s = lerp(1.3, 0.68, e), rot = lerp(-14, -5, e), x = W / 2, y = H * 0.38 + Math.sin((t - 24) * 1.5) * 7;
+  shadow(x, H * 0.38 + 0.5 * 783 * 0.68 + 26, s, 0.35 * e, 1 + Math.sin((t - 24) * 1.5) * 0.03);
+  shoe(x, y, s, rot);
+  frameBorder('rgba(43,32,25,0.22)');
   // wordmark
-  const wa = eOut(seg(t, 25.0, 25.9));
-  const ls = lerp(60, 22, eOut(seg(t, 25.0, 26.4)));
-  ctx.save();
-  ctx.font = `900 132px ${FONT}`; ctx.letterSpacing = ls + 'px';
-  const w1 = ctx.measureText('ASICS').width;
-  ctx.font = `italic 900 132px ${FONT}`;
-  const w2 = ctx.measureText('GEL').width;
-  ctx.restore();
-  const gap = 46, total = w1 + gap + w2, x0 = W / 2 - total / 2 + ls / 2;
-  const wy = H * 0.745;
-  txt('ASICS', x0, wy, { align: 'left', w: 900, size: 132, ls, a: wa, blur: 10 * (1 - wa) });
-  txt('GEL', x0 + w1 + gap, wy, { align: 'left', w: 900, italic: true, size: 132, ls, a: wa, fill: C.cyan, blur: 10 * (1 - wa), glow: 'rgba(63,214,255,0.6)', glowR: 40 * wa });
-  const la = eOut(seg(t, 25.6, 26.4));
-  ctx.fillStyle = `rgba(255,255,255,${0.5 * la})`; ctx.fillRect(W / 2 - 220 * la, wy + 82, 440 * la, 1.5);
-  txt('Weich landen. Weiter laufen.', W / 2, wy + 140, { w: 300, size: 50, ls: 2, a: seg(t, 26.1, 26.8), blur: 8 * (1 - seg(t, 26.1, 26.6)) });
-  txt('JETZT IM HANDEL UND ONLINE', W / 2, wy + 210, { fam: MONO, w: 400, size: 20, ls: 8, fill: 'rgba(200,215,240,0.75)', a: seg(t, 27.0, 27.6) });
+  const wk = seg(t, 24.8, 25.25);
+  const ls = lerp(40, 6, eOut(seg(t, 24.8, 25.8)));
+  const o1 = { w: 900, size: 120, ls };
+  const o2 = { w: 900, size: 120, ls, italic: true };
+  const w1 = tw('ASICS', o1), w2 = tw('GEL', o2), gap = 70;
+  const x0 = W / 2 - (w1 + gap + w2) / 2, wy = H * 0.755;
+  reveal('ASICS', x0, wy, wk, { ...o1, align: 'left', fill: PAL.ink });
+  reveal('GEL', x0 + w1 + gap, wy, wk, { ...o2, align: 'left', fill: PAL.rose });
+  const lk = eOut(seg(t, 25.0, 25.4));
+  ctx.fillStyle = PAL.ink; ctx.fillRect(x0 + w1 + gap / 2 - 1, wy - 50 * lk, 2, 100 * lk);
+  // tagline
+  const t1 = 'Komfort, der ', t2 = 'auffällt.';
+  const a1 = { w: 500, size: 46, ls: -0.5 }, a2 = { fam: SERIF, italic: true, size: 52 };
+  const tw1 = tw(t1, a1), tw2 = tw(t2, a2), tx = W / 2 - (tw1 + tw2) / 2, ty = H * 0.86;
+  reveal(t1, tx, ty, seg(t, 25.6, 25.95), { ...a1, align: 'left', fill: PAL.ink });
+  reveal(t2, tx + tw1, ty, seg(t, 25.75, 26.1), { ...a2, align: 'left', fill: PAL.rose });
+  txt('JETZT ERHÄLTLICH', W / 2, H * 0.925, { fam: MONO, size: 17, ls: 8, w: 500, fill: PAL.mocha, a: seg(t, 26.4, 26.9) });
+  corners('rgba(43,32,25,0.7)', { tl: 'ASICS', tr: 'GEL', bl: 'N° 04', br: '—' });
 }
 
 // =====================================================================
 //  master
 // =====================================================================
-const HITS = [[5.0, 14, 7], [8.0, 22, 6], [18.0, 20, 6], [20.0, 10, 8], [22.0, 10, 8], [24.0, 26, 5]];
-function shake(t) {
+function shakeAt(t) {
   let x = 0, y = 0;
-  for (const [h, amp, k] of HITS) { const e = hitEnv(t, h, k) * amp; x += e * Math.sin(t * 93 + h); y += e * Math.sin(t * 131 + h * 2); }
-  if (t >= 18 && t < 23.5) { const ph = ((t - 18) / 0.5) % 1; const e = Math.exp(-ph * 0.5 * 18) * 4; y += e * Math.sin(t * 160); }
-  return { x, y };
+  for (const [h, a, k] of [[6, 28, 7], [18, 16, 8], [24, 18, 6], [8, 8, 12], [10, 8, 12]]) { const e = hitEnv(t, h, k) * a; x += e * Math.sin(t * 97 + h); y += e * Math.sin(t * 133 + h); }
+  if (t > 6 && t < 12) { const e = Math.exp(-beatPh(t, 6) * 18) * 3; y += e * Math.sin(t * 150); }
+  return { x: x + Math.sin(t * 7.3) * 0.9, y: y + Math.sin(t * 5.1 + 1) * 0.9 };
 }
-function flashes(t) {
-  let a = 0;
-  for (const [h, k, pre] of [[8.0, 7, 0.12], [18.0, 7, 0.10], [24.0, 5, 0.12]]) {
-    if (t >= h) a += Math.exp(-(t - h) * k); else if (t > h - pre) a += Math.pow(1 - (h - t) / pre, 2);
-  }
-  a += 0.35 * hitEnv(t, 5.0, 12);
-  if (a > 0.001) { ctx.fillStyle = `rgba(235,245,255,${clamp(a)})`; ctx.fillRect(0, 0, W, H); }
-}
-function post(t) {
-  // grain
-  ctx.save(); ctx.globalCompositeOperation = 'overlay'; ctx.globalAlpha = 0.10;
-  ctx.drawImage(grainC[Math.floor(t * 30) % grainC.length], 0, 0, W, H);
-  ctx.restore();
-  // vignette
-  const v = ctx.createRadialGradient(W / 2, H / 2, H * 0.35, W / 2, H / 2, H * 1.05);
-  v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,0.6)');
-  ctx.fillStyle = v; ctx.fillRect(0, 0, W, H);
-  // fade in/out
-  const f = 1 - seg(t, 0, 0.4) * (1 - seg(t, 29.1, 29.9));
-  if (f > 0) { ctx.fillStyle = `rgba(0,0,0,${f})`; ctx.fillRect(0, 0, W, H); }
-}
-
 function render(t) {
   ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; ctx.filter = 'none';
-  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
-  const sh = shake(t);
+  fillAll('#000');
+  const sh = shakeAt(t);
   ctx.save(); ctx.translate(sh.x, sh.y);
-  if (t < 8) sceneA(t);
-  else if (t < 13) sceneB(t);
-  else if (t < 18) sceneC(t);
-  else if (t < 24) sceneD(t);
-  else sceneE(t);
+  if (t < 6) s1(t); else if (t < 12) s2(t); else if (t < 18) s3(t); else if (t < 24) s4(t); else s5(t);
   ctx.restore();
-  flashes(t);
-  post(t);
+  letterbox(t);
+
+  // light leaks
+  leak(t, 0.6 * hitEnv(t, 6, 2.5) + 0.45 * hitEnv(t, 24, 1.4) + 0.25 * hitEnv(t, 12, 4) + 0.2 * hitEnv(t, 18, 3), 7);
+  // flashes on cuts
+  let fl = 0;
+  for (const c of [1, 1.5, 2, 2.5, 3, 5, 8, 10, 12, 15, 20, 20.5, 21, 21.5]) fl += 0.55 * hitEnv(t, c, 30);
+  for (let c = 22; c < 23.8; c += 0.25) fl += 0.4 * hitEnv(t, c, 40);
+  fl += hitEnv(t, 6, 6) + 0.9 * hitEnv(t, 18, 7);
+  if (t > 5.85 && t < 6) fl += Math.pow(seg(t, 5.85, 6), 2);
+  if (t > 17.85 && t < 18) fl += Math.pow(seg(t, 17.85, 18), 2) * 0.8;
+  flash(fl);
+  flash(0.9 * hitEnv(t, 24, 5), '255,236,215');
+  // glitch + rgb split
+  let gl = 0, rs = 0;
+  for (const c of [1, 1.5, 2, 2.5, 8, 10, 15]) { gl += 50 * hitEnv(t, c, 25); rs += 9 * hitEnv(t, c, 18); }
+  for (let c = 22; c < 23.8; c += 0.25) { gl += 70 * hitEnv(t, c, 22); rs += 12 * hitEnv(t, c, 16); }
+  gl += 80 * hitEnv(t, 6, 10) + 60 * hitEnv(t, 18, 12);
+  rs += 22 * hitEnv(t, 6, 6) + 14 * hitEnv(t, 18, 7) + 10 * hitEnv(t, 24, 6) + 18 * seg(t, 5.6, 6) * (t < 6);
+  if (t > 23.5 && t < 23.75) { gl += 40; rs += 10; }
+  glitch(gl, Math.floor(t * 30), 10);
+  rgbSplit(rs);
+  if ((t >= 23.5 && t < 23.75 && Math.floor(t * 30) % 3 === 0) || (t >= 19.0 && t < 19.06)) invert();
+
+  // grain + vignette + fade
+  ctx.save(); ctx.globalCompositeOperation = 'overlay'; ctx.globalAlpha = 0.16;
+  ctx.drawImage(grainC[Math.floor(t * 30) % grainC.length], 0, 0, W, H);
+  ctx.restore();
+  const v = ctx.createRadialGradient(W / 2, H / 2, H * 0.45, W / 2, H / 2, H * 1.1);
+  v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(10,5,0,0.38)');
+  ctx.fillStyle = v; ctx.fillRect(0, 0, W, H);
+  const f = 1 - seg(t, 0, 0.3) * (1 - seg(t, 29.2, 29.95));
+  if (f > 0) { ctx.fillStyle = `rgba(0,0,0,${f})`; ctx.fillRect(0, 0, W, H); }
 }
 window.render = render;
 
 Promise.all([
+  load('cut', 'assets/shoe_cut.png'), load('x4', 'assets/shoe_x4.png'),
   document.fonts.load(`900 100px "Inter Display"`), document.fonts.load(`italic 900 100px "Inter Display"`),
-  document.fonts.load(`300 100px "Inter Display"`), document.fonts.load(`800 100px "Inter Display"`),
-  document.fonts.load(`600 100px "Inter Display"`), document.fonts.load(`300 40px "JetBrains Mono"`),
-]).catch(() => { }).then(() => { render(0); window.ready = true; });
+  document.fonts.load(`500 100px "Inter Display"`), document.fonts.load(`800 100px "Inter Display"`),
+  document.fonts.load(`italic 400 100px "Bitstream Charter"`), document.fonts.load(`500 40px "JetBrains Mono"`),
+  document.fonts.load(`600 40px "JetBrains Mono"`),
+]).then(() => { render(0); window.ready = true; }).catch(e => { console.error('load failed', e); });
 
-// live preview when opened in a browser: ?play
-if (location.search.includes('play')) { const t0 = performance.now(); const loop = () => { render(((performance.now() - t0) / 1000) % 30); requestAnimationFrame(loop); }; loop(); }
+if (location.search.includes('play')) { const t0 = performance.now(); const loop = () => { if (window.ready) render(((performance.now() - t0) / 1000) % 30); requestAnimationFrame(loop); }; loop(); }
 </script>
 </body>
 </html>
