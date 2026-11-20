@@ -18,6 +18,7 @@
     --serif: 'Cormorant Garamond', 'Times New Roman', serif; --sans: 'Jost', system-ui, sans-serif;
     --ease: cubic-bezier(.22,1,.36,1);
     --top: 84px;
+    color-scheme: dark;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
   html, body { height: 100%; }
@@ -510,7 +511,12 @@ const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-function setUrl(u) { try { setUrl(u); } catch {} }
+// When embedded (shareable demo), the page keeps its route in memory instead of the URL hash.
+const EMBED = !!window.SUPREMZ_DEMO;
+let memHash = null;
+const getHash = () => (EMBED ? memHash : location.hash) || '#/home';
+function nav(h) { if (EMBED) { memHash = h; route(); } else location.hash = h; }
+function setUrl(u) { if (EMBED && u.startsWith('#')) { memHash = u; return; } try { history.replaceState(null, '', u); } catch {} }
 const idOf = uri => String(uri || '').split(':').pop();
 const store = {
   get(k) { try { return JSON.parse(localStorage.getItem('supremz.' + k)); } catch { return null; } },
@@ -889,7 +895,7 @@ let navToken = 0;
 const view = () => $('#view');
 function setTitle(t) { document.title = t ? `${t} · ${APP}` : APP; }
 async function route() {
-  const h = location.hash || '#/home'; const tok = ++navToken;
+  const h = getHash(); const tok = ++navToken;
   lists.clear(); closeMenus(); secN = 0;
   const m = h.match(/^#\/(\w+)(?:\/(.*))?$/) || [];
   const [, name = 'home', arg = ''] = m;
@@ -1489,8 +1495,9 @@ document.addEventListener('click', e => {
   const more = t.closest('[data-more]'); if (more) { openMore(more); return; }
   const act = t.closest('[data-act]'); if (act) { actions[act.dataset.act]?.(act); return; }
   if (t.closest('#userBtn')) { openUserMenu($('#userBtn')); return; }
-  if (t.closest('a[href]')) { if ($('#np').classList.contains('open')) openNP(false); return; }
-  const href = t.closest('[data-href]'); if (href) { location.hash = href.dataset.href; return; }
+  const link = t.closest('a[href]');
+  if (link) { if ($('#np').classList.contains('open')) openNP(false); const hr = link.getAttribute('href'); if (EMBED && hr.startsWith('#/')) { e.preventDefault(); nav(hr); } return; }
+  const href = t.closest('[data-href]'); if (href) { nav(href.dataset.href); return; }
   const row = t.closest('.tr[data-i]');
   if (row) { activateSdk(); lists.get(row.closest('[data-list]')?.dataset.list)?.play(+row.dataset.i); return; }
   if (matchMedia('(max-width: 760px)').matches && t.closest('#player') && !t.closest('button')) openNP(true);
@@ -1504,7 +1511,7 @@ document.addEventListener('keydown', e => {
   else if (e.key === 'ArrowLeft' && P.item) seek(curPos() - 10000);
   else if (e.key === 'ArrowUp' && e.shiftKey) setVolume(Math.min(100, P.volume + 10));
   else if (e.key === 'ArrowDown' && e.shiftKey) setVolume(Math.max(0, P.volume - 10));
-  else if (e.key === '/' || (e.key === 'k' && (e.ctrlKey || e.metaKey))) { e.preventDefault(); location.hash = '#/search'; setTimeout(() => $('#searchInput')?.focus(), 50); }
+  else if (e.key === '/' || (e.key === 'k' && (e.ctrlKey || e.metaKey))) { e.preventDefault(); nav('#/search'); setTimeout(() => $('#searchInput')?.focus(), 50); }
   else if (e.key === 'Escape') { closeMenus(); openNP(false); toggleQueue(false); }
 });
 addEventListener('resize', closeMenus);
