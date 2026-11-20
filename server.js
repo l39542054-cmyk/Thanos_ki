@@ -89,7 +89,7 @@ http.createServer((req, res) => {
   send(res, 404, 'Not found', 'text/plain');
 }).listen(PORT, () => {
   console.log(`T.H.A.N.O.S. online: http://localhost:${PORT}`);
-  console.log(`Nova (Musik):       http://127.0.0.1:${PORT}/music`);
+  console.log(`Supremz (Musik):    http://127.0.0.1:${PORT}/music`);
   if (!API_KEY) console.warn('Warnung: ANTHROPIC_API_KEY nicht gesetzt – nur Offline-Modus.');
   if (!ELEVEN_KEY) console.warn('Warnung: ELEVENLABS_API_KEY nicht gesetzt – Browser-Stimme als Fallback.');
 });
