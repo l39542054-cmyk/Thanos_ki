@@ -77,15 +77,19 @@ async function tts(req, res) {
   }
 }
 
+const PAGES = { '/': 'index.html', '/index.html': 'index.html', '/music': 'music.html', '/music/': 'music.html' };
+
 http.createServer((req, res) => {
-  if (req.method === 'POST' && req.url === '/api/chat') return chat(req, res);
-  if (req.method === 'POST' && req.url === '/api/tts') return tts(req, res);
-  if (req.method === 'GET' && (req.url === '/' || req.url === '/index.html')) {
-    return send(res, 200, fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8'), 'text/html; charset=utf-8');
+  const { pathname } = new URL(req.url, 'http://local');
+  if (req.method === 'POST' && pathname === '/api/chat') return chat(req, res);
+  if (req.method === 'POST' && pathname === '/api/tts') return tts(req, res);
+  if (req.method === 'GET' && PAGES[pathname]) {
+    return send(res, 200, fs.readFileSync(path.join(__dirname, PAGES[pathname]), 'utf8'), 'text/html; charset=utf-8');
   }
   send(res, 404, 'Not found', 'text/plain');
 }).listen(PORT, () => {
   console.log(`T.H.A.N.O.S. online: http://localhost:${PORT}`);
+  console.log(`Nova (Musik):       http://127.0.0.1:${PORT}/music`);
   if (!API_KEY) console.warn('Warnung: ANTHROPIC_API_KEY nicht gesetzt – nur Offline-Modus.');
   if (!ELEVEN_KEY) console.warn('Warnung: ELEVENLABS_API_KEY nicht gesetzt – Browser-Stimme als Fallback.');
 });
